@@ -2063,3 +2063,20 @@ button,
         transition-duration: 0.01ms !important;
     }
 }
+
+/* ============================================================
+   펌웨어 업로드용 Spinner
+   ============================================================ */
+.spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top: 3px solid var(--blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

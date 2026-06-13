@@ -174,7 +174,56 @@
                             <polyline points="9 18 15 12 9 6"></polyline>
                         </svg>
                     </button>
+                    
+                    <!-- 펌웨어 업로드 버튼 -->
+                    <button id="btn-upload-firmware" class="motor-link-btn" style="margin-top:10px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;margin-right:7px;">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <span id="firmware-link-label">ESP32 펌웨어 업로드</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;margin-left:auto;opacity:0.5;">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         펌웨어 업로드 모달
+         ════════════════════════════════════════ -->
+    <div id="firmware-modal" class="ios-modal-backdrop">
+        <div id="firmware-panel" class="ios-modal-panel">
+            <div class="ios-modal-header">
+                <span>ESP32 펌웨어 업로드</span>
+                <button id="close-firmware" class="close-icon-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div style="padding: 24px;">
+                <p style="font-size: 14px; line-height: 1.5; color: rgba(255,255,255,0.85); margin-bottom: 20px;">
+                    ESP32 보드에 새로운 펌웨어를 업로드합니다.
+                </p>
+                <div style="background: rgba(255,159,10,0.15); border: 1px solid rgba(255,159,10,0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+                    <p style="font-size: 13.5px; font-weight: 600; color: #FF9F0A; margin-bottom: 8px; display: flex; align-items: center;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px; margin-right:6px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        필수 사전 준비
+                    </p>
+                    <p style="font-size: 13px; line-height: 1.6; color: rgba(255,255,255,0.85);">
+                        업로드를 시작하기 전에 반드시 ESP32 보드의 <strong>GND 핀</strong>과 <strong>GPIO0번 핀</strong>을 점퍼선으로 연결(쇼트)하거나 BOOT 버튼을 꾹 누르고 있어야 합니다.<br><br>준비가 완료되면 아래 버튼을 눌러주세요.
+                    </p>
+                </div>
+                <div id="firmware-progress" style="display: none; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px;">
+                    <div class="spinner"></div>
+                    <span style="font-size: 13px; color: var(--green);">업로드 진행 중... 보드를 분리하지 마세요. (최대 3분 소요)</span>
+                </div>
+                <button id="btn-start-upload" class="cfg-apply-btn" style="width: 100%; background: var(--blue); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 600; font-size: 15px;">업로드 시작</button>
             </div>
         </div>
     </div>

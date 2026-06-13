@@ -731,5 +731,45 @@ def setup_routes(app):
         import motor_esp32 as esp
         esp.stop_motors()
         return "OK"
+    @app.route('/upload_firmware', methods=['POST'])
+    def upload_firmware():
+        """ESP32 펌웨어 컴파일 및 업로드"""
+        import motor_esp32 as esp
+        import subprocess
+        import time
 
+        # 1. 시리얼 연결 해제 (업로드 중 포트 점유 방지)
+        esp.safe_disconnect()
+        time.sleep(1) # 포트 해제 대기
 
+        port = state.motor_port
+        if not port:
+            # 포트가 연결된 적 없다면 자동 감지 시도
+            port = esp._find_port()
+            if not port:
+                return jsonify(ok=False, log="연결된 ESP32 포트를 찾을 수 없습니다.")
+
+        # 2. 컴파일 및 업로드 명령어 실행
+        cmd = [
+            "arduino-cli", "upload",
+            "-p", port,
+            "--fqbn", "esp32:esp32:esp32doit-devkit-v1",
+            "esp32_firmware/esp32_firmware.ino"
+        ]
+        
+        try:
+            # 타임아웃 180초 지정 (업로드 시간이 걸릴 수 있음)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            success = (res.returncode == 0)
+            log_output = res.stdout + "\n" + res.stderr
+        except subprocess.TimeoutExpired:
+            success = False
+            log_output = "업로드 시간이 초과되었습니다."
+        except Exception as e:
+            success = False
+            log_output = str(e)
+
+        # 3. 다시 연결 시도
+        esp.connect(port)
+
+        return jsonify(ok=success, log=log_output)

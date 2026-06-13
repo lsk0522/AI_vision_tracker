@@ -450,9 +450,11 @@ function loop(timestamp){
             px += (tPx - px) * factor;
             py += (tPy - py) * factor;
         } else {
-            // 조이스틱 모드에서는 크로스헤어를 중앙에 고정 (모터 자체를 회전시킴)
-            px += (320 - px) * 0.30;
-            py += (240 - py) * 0.30;
+            // 조이스틱 모드: 조이스틱 방향으로 커서가 살짝 이동하며 직관적 시각 피드백 제공 (최대 100px)
+            const targetX = 320 + joyVx * 100;
+            const targetY = 240 + joyVy * 100;
+            px += (targetX - px) * 0.35;
+            py += (targetY - py) * 0.35;
             tPx = 320;
             tPy = 240;
         }
@@ -2305,6 +2307,55 @@ if (camFpsSelect) {
             setTimeout(loadCameraSettings, 500);
         } catch(err) {
             console.error("Failed to change fps:", err);
+        }
+    });
+}
+
+// ══════════════════════════════════════════
+// ESP32 펌웨어 업로드 로직
+// ══════════════════════════════════════════
+const btnUploadFirmware = document.getElementById("btn-upload-firmware");
+const firmwareModal = document.getElementById("firmware-modal");
+const closeFirmware = document.getElementById("close-firmware");
+const btnStartUpload = document.getElementById("btn-start-upload");
+const firmwareProgress = document.getElementById("firmware-progress");
+
+if (btnUploadFirmware) {
+    btnUploadFirmware.addEventListener("click", () => {
+        closeSettingsModal();
+        firmwareModal.style.display = "flex";
+        btnStartUpload.style.display = "block";
+        firmwareProgress.style.display = "none";
+    });
+}
+
+if (closeFirmware) {
+    closeFirmware.addEventListener("click", () => {
+        _closeModalAnimate(firmwareModal);
+    });
+}
+
+if (btnStartUpload) {
+    btnStartUpload.addEventListener("click", async () => {
+        btnStartUpload.style.display = "none";
+        firmwareProgress.style.display = "flex";
+        try {
+            showToast("업로드를 시작합니다...", "info");
+            const res = await fetch("/upload_firmware", { method: "POST" });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("펌웨어 업로드 완료!", "success");
+                setTimeout(() => _closeModalAnimate(firmwareModal), 1500);
+            } else {
+                showToast("업로드 실패. 백엔드 콘솔을 확인하세요.", "error");
+                console.error("Upload failed:\n", data.log);
+                btnStartUpload.style.display = "block";
+                firmwareProgress.style.display = "none";
+            }
+        } catch(e) {
+            showToast("업로드 중 네트워크 오류가 발생했습니다.", "error");
+            btnStartUpload.style.display = "block";
+            firmwareProgress.style.display = "none";
         }
     });
 }
