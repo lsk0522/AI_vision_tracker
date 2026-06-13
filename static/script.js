@@ -450,9 +450,9 @@ function loop(timestamp){
             px += (tPx - px) * factor;
             py += (tPy - py) * factor;
         } else {
-            // 조이스틱 모드: 조이스틱 방향으로 커서가 살짝 이동하며 직관적 시각 피드백 제공 (최대 100px)
-            const targetX = 320 + joyVx * 100;
-            const targetY = 240 + joyVy * 100;
+            // 조이스틱 모드: 조이스틱 방향으로 커서가 화면 전체 범위까지 시각적 피드백 제공
+            const targetX = 320 + joyVx * 320;
+            const targetY = 240 + joyVy * 240;
             px += (targetX - px) * 0.35;
             py += (targetY - py) * 0.35;
             tPx = 320;
