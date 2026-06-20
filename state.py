@@ -19,15 +19,7 @@ learning_failed   = False
 motor_connected = False
 motor_port      = ""
 
-# ESP32로부터 수신한 레거시 track 프로토콜 상태 (호환용으로 유지)
-motor_target_x  = 320
-motor_target_y  = 240
-motor_error_x   = 0
-motor_error_y   = 0
-motor_steps_m1  = 0
-motor_steps_m2  = 0
-motor_moving    = False
-motor_timeout   = False
+
 
 # ── 기기 타입 ──────────────────────────────────────────────
 device_type = "esp32"   # "esp32" | "arduino"
@@ -54,15 +46,15 @@ esp32_pos_m2_mm = 0.0
 esp32_speed_m1  = 0.0
 esp32_speed_m2  = 0.0
 
-# ── Arduino 설정 ──────────────────────────────────────────
-arduino_steps_per_rev = 1600
-arduino_m1_max_speed  = 400
-arduino_m1_accel      = 100
-arduino_m2_max_speed  = 400
-arduino_m2_accel      = 100
-arduino_pos_m1        = 0
-arduino_pos_m2        = 0
 
 # ── 큐 추적 변수 ──────────────────────────────────────────
 last_queued_target_m1 = 0.0
 last_queued_target_m2 = 0.0
+
+# ── 펌웨어 버전 관리 ──────────────────────────────────────
+# 백엔드가 기대하는 ESP32 펌웨어 버전 (펌웨어 수정 시 이 값도 함께 올리세요)
+EXPECTED_FIRMWARE_VERSION = "2.0.0"
+
+# 실제로 연결된 ESP32가 보고한 버전
+firmware_version_actual   = ""      # VER: 수신 전까지 빈 문자열
+firmware_mismatch         = False   # True 이면 UI가 경고 모달을 표시

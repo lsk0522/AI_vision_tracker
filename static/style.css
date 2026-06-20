@@ -2080,3 +2080,181 @@ button,
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* ══════════════════════════════════════════════
+   펌웨어 불일치 경고 모달
+   ══════════════════════════════════════════════ */
+
+#firmware-mismatch-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fw-overlay-in 0.28s cubic-bezier(0.32, 1.0, 0.58, 1.0);
+}
+
+@keyframes fw-overlay-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+#firmware-mismatch-modal {
+    background: linear-gradient(
+        145deg,
+        rgba(36, 36, 40, 0.96) 0%,
+        rgba(28, 28, 32, 0.98) 100%
+    );
+    border: 1px solid rgba(255, 149, 0, 0.30);
+    border-radius: 24px;
+    padding: 36px 32px 28px;
+    max-width: 400px;
+    width: calc(100% - 40px);
+    box-shadow:
+        0 0 0 1px rgba(255, 149, 0, 0.12),
+        0 24px 64px rgba(0, 0, 0, 0.70),
+        0 0 40px rgba(255, 149, 0, 0.08);
+    animation: fw-modal-in 0.32s cubic-bezier(0.32, 1.0, 0.58, 1.0);
+    text-align: center;
+}
+
+@keyframes fw-modal-in {
+    from { opacity: 0; transform: scale(0.88) translateY(16px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+.fw-modal-icon {
+    font-size: 52px;
+    line-height: 1;
+    margin-bottom: 16px;
+    filter: drop-shadow(0 0 18px rgba(255, 149, 0, 0.55));
+    animation: fw-pulse 2s ease-in-out infinite;
+}
+
+@keyframes fw-pulse {
+    0%, 100% { filter: drop-shadow(0 0 14px rgba(255, 149, 0, 0.50)); }
+    50%       { filter: drop-shadow(0 0 28px rgba(255, 149, 0, 0.85)); }
+}
+
+.fw-modal-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+    margin-bottom: 10px;
+}
+
+.fw-modal-desc {
+    font-size: 14px;
+    color: rgba(235, 235, 245, 0.60);
+    line-height: 1.65;
+    margin-bottom: 22px;
+}
+
+.fw-modal-versions {
+    background: rgba(255, 149, 0, 0.07);
+    border: 0.5px solid rgba(255, 149, 0, 0.22);
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.fw-version-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.fw-label {
+    font-size: 13px;
+    color: rgba(235, 235, 245, 0.50);
+    white-space: nowrap;
+}
+
+.fw-version {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 8px;
+}
+
+.fw-version-expected {
+    background: rgba(48, 209, 88, 0.15);
+    color: #30d158;
+    border: 0.5px solid rgba(48, 209, 88, 0.30);
+}
+
+.fw-version-actual {
+    background: rgba(255, 69, 58, 0.15);
+    color: #ff453a;
+    border: 0.5px solid rgba(255, 69, 58, 0.30);
+}
+
+.fw-modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.fw-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.12s var(--spring, ease), filter 0.12s, box-shadow 0.12s;
+}
+
+.fw-btn-primary {
+    background: linear-gradient(135deg, #ff9500, #ff6000);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(255, 149, 0, 0.40);
+}
+
+.fw-btn-primary:hover  { filter: brightness(1.10); box-shadow: 0 8px 26px rgba(255, 149, 0, 0.55); }
+.fw-btn-primary:active { transform: scale(0.96); filter: brightness(0.88); }
+
+.fw-btn-secondary {
+    background: rgba(120, 120, 128, 0.22);
+    color: rgba(235, 235, 245, 0.70);
+    border: 0.5px solid rgba(120, 120, 128, 0.30);
+}
+
+.fw-btn-secondary:hover  { background: rgba(120, 120, 128, 0.32); }
+.fw-btn-secondary:active { transform: scale(0.96); }
+
+.fw-modal-warning {
+    font-size: 12px;
+    color: rgba(235, 235, 245, 0.35);
+    letter-spacing: 0.1px;
+}
+
+/* 업로드 진행 중 상태 */
+#firmware-mismatch-modal.fw-uploading .fw-btn-primary {
+    background: linear-gradient(135deg, #636366, #48484a);
+    box-shadow: none;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+#firmware-mismatch-modal.fw-uploading .fw-btn-secondary {
+    opacity: 0.4;
+    pointer-events: none;
+}
+

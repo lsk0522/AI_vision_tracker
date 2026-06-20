@@ -99,7 +99,20 @@ def _send(cmd: str):
 
 
 def _parse_status(line: str):
-    """POS: 피드백 파싱."""
+    """POS: / VER: 피드백 파싱."""
+    # ── 펌웨어 버전 수신 ──────────────────────────────────────────
+    if line.startswith("VER:"):
+        actual = line[4:].strip()
+        state.firmware_version_actual = actual
+        state.firmware_mismatch = (actual != state.EXPECTED_FIRMWARE_VERSION)
+        if state.firmware_mismatch:
+            print(f"[esp32] ⚠️ 펌웨어 버전 불일치! "
+                  f"연결됨={actual!r}, 기대={state.EXPECTED_FIRMWARE_VERSION!r}")
+        else:
+            print(f"[esp32] ✅ 펌웨어 버저 확인: {actual}")
+        return
+
+    # ── 위치 피드백 ──────────────────────────────────────────
     if line.startswith("POS:"):
         global _first_pos_sync
         try:
@@ -148,7 +161,8 @@ def _run():
         if not ser_alive:
             state.motor_connected = False
             time.sleep(3)
-            connect(_port)
+            if not getattr(state, "pause_reconnect", False):
+                connect(_port)
             continue
 
         state.motor_connected = True

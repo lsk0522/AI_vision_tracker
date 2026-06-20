@@ -29,6 +29,9 @@
 
 #include <Arduino.h>
 
+// ── 펌웨어 버전 (서버에서 state.EXPECTED_FIRMWARE_VERSION과 일치해야 함) ───────────────
+#define FIRMWARE_VERSION "2.0.0"
+
 // ── 핀 정의 ──────────────────────────────────────────────────────
 #define M1_ENA 13
 #define M1_DIR 14
@@ -87,6 +90,8 @@ void setup() {
   digitalWrite(M2_PUL, HIGH);
 
   lastStatusMs = millis();
+  Serial.print("VER:");
+  Serial.println(FIRMWARE_VERSION);
   Serial.println("OK BOOT AI Vision Tracker ESP32 Ready");
 }
 

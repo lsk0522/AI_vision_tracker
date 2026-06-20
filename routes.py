@@ -740,6 +740,19 @@ def setup_routes(app):
         import motor_esp32 as esp
         esp.stop_motors()
         return "OK"
+    # ─────────────────────────────────────────
+    # 펌웨어 버전 상태 조회
+    # ─────────────────────────────────────────
+
+    @app.route('/firmware_status')
+    def firmware_status():
+        """연결된 ESP32 펌웨어 버전과 기대 버전 비교 결과 반환"""
+        return jsonify(
+            mismatch=state.firmware_mismatch,
+            actual=state.firmware_version_actual,
+            expected=state.EXPECTED_FIRMWARE_VERSION,
+        )
+
     @app.route('/upload_firmware', methods=['POST'])
     def upload_firmware():
         """ESP32 펌웨어 컴파일 및 업로드"""
