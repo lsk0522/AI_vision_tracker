@@ -16,6 +16,7 @@ try:
     import serial
     _serial_ok = True
 except ImportError:
+    serial = None  # type: ignore
     _serial_ok = False
     print("[arduino] pyserial 없음 → pip install pyserial")
 
@@ -40,7 +41,7 @@ def connect(port=None, baudrate=115200):
         return
 
     try:
-        _ser  = serial.Serial(port, baudrate, timeout=0.05)
+        _ser  = serial.Serial(port, baudrate, timeout=0.05) # type: ignore
         _port = port
         time.sleep(2)   # 아두이노 리셋 대기
         state.motor_connected = True

@@ -13,11 +13,7 @@ def save_capture():
     if state.current_frame is None:
         return
 
-    if state.last_point is None:
-        return
-
-    point: Tuple[int, int] = state.last_point  # type: ignore[assignment]
-    x, y = point
+    x, y = state.point[0], state.point[1]
 
     frame = state.current_frame.copy()
 

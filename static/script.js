@@ -2054,6 +2054,7 @@ async function loadEsp32MmSettings() {
         if (!res.ok) return;
         const d = await res.json();
 
+        // ── 위치 제어(mm) 탭 파라미터 ──
         const spm1El   = document.getElementById("kp-spm1");
         const spm2El   = document.getElementById("kp-spm2");
         const maxSpdEl = document.getElementById("kp-maxspd");
@@ -2065,6 +2066,15 @@ async function loadEsp32MmSettings() {
         if (maxSpdEl) maxSpdEl.value = d.max_speed_hz;
         if (accelEl)  accelEl.value  = d.accel_rate;
         if (pulsEl)   pulsEl.value   = d.pulse_us;
+
+        // ── 카메라 추적 탭 파라미터 (새로 추가된 필드) ──
+        const spxEl      = document.getElementById("cfg-steps-per-px-num");
+        const trackSpdEl = document.getElementById("cfg-max-speed-hz");
+        const trackAccEl = document.getElementById("cfg-accel-rate");
+
+        if (spxEl)      spxEl.value      = d.steps_per_px  ?? d.steps_per_px  ?? 3.5;
+        if (trackSpdEl) trackSpdEl.value = d.max_speed_hz;
+        if (trackAccEl) trackAccEl.value = d.accel_rate;
 
         // 방향 반전 상태 반영
         [kpM1Inv, kpM2Inv].forEach((btn, i) => {

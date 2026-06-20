@@ -104,3 +104,104 @@
 - 전체 코드 리뷰 완료 (CSRT Tracking, Competitive Tracking, 1:5 기어비 등 반영 확인)
 - README.md 작성 및 내용 최신화 완료
 - 이쁘고 직관적인 디자인(배지, 다이어그램, 테이블 등) 적용 완료
+
+---
+
+## [2026-06-20] 코드 import/호환 오류 수정
+
+### 📌 계획
+- routes.py에서 존재하지 않는 motor 모듈 import 오류 수정
+- routes.py에서 motor_esp32에 없는 send_mm_config() 함수 호출 오류 수정
+- /set_motor_config 라우트를 motor_esp32.send_config()로 교체
+- /set_esp32_mm_config 라우트의 send_mm_config → send_config로 통일
+
+### 🔧 변경 파일
+- routes.py
+  - 491: import motor as mot → motor.py 없음, motor_esp32로 교체
+  - 627,631,635,649,653,657: esp.send_mm_config() → esp.send_config()로 수정
+
+### ✅ 결과
+- routes.py: import motor → import motor_esp32 수정 완료
+- routes.py: send_mm_config() 6곳 → send_config()로 수정 완료
+- state.py: motor_target_x/y, motor_error_x/y, motor_steps_m1/m2, motor_moving, motor_timeout, motor_stopped 추가
+- state.py: arduino_steps_per_rev, m1/m2_max_speed, m1/m2_accel, pos_m1/m2 추가
+- python -m py_compile 및 import 테스트 통과 (ALL OK)
+
+
+---
+
+## [2026-06-20] routes.py 나머지 오류 수정
+
+### 📌 계획
+- routes.py L776: esp._find_port() 존재하지 않음 → serial_utils.find_port()로 교체
+- 전체 파일 교차 검증으로 추가 누락 함수/속성 확인
+
+### 🔧 변경 파일
+- routes.py: L776 esp._find_port() → serial_utils.find_port(_ESP32_VIDS) 교체
+
+### ✅ 결과
+- routes.py L776: esp._find_port() → serial_utils.find_port(preferred_vids=_ESP32_VIDS) 교체 완료\n- 9개 파일 전체 py_compile 검증: ALL PASS
+
+
+---
+
+## [2026-06-20] routes.py Pylance 타입 오류 수정
+
+### 📌 계획
+- L327: state.current_frame이 None일 수 있어 .shape[:2] 언패킹이 Never 타입 오류 → assert/타입가드 추가
+- L342: cv2.imencode 반환 buf(ndarray)를 b64encode에 직접 전달 → buf.tobytes()로 변환
+
+### 🔧 변경 파일
+- routes.py L327: current_frame None 체크 강화
+- routes.py L342: b64encode(buf) → b64encode(buf.tobytes())
+
+### ✅ 결과
+- 작업 후 기록 예정
+
+---
+
+## [2026-06-20] detector.py Pylance 오류 수정
+
+### 📌 계획
+- L110, L196: frame.shape[:2] 슬라이싱 언패킹으로 인한 Never 타입 오류를 인덱스 직접 접근(shape[0], shape[1])으로 수정
+- L230, L266: [int(v) for v in bbox] 리스트를 크기가 명시되지 않은 상태로 4개 변수로 언패킹 시 발생하는 타입 오류를 인덱스 할당 또는 고정 크기 튜플로 수정
+
+### 🔧 변경 파일
+- detector.py
+  - frame.shape[:2] → img_h, img_w = frame.shape[0], frame.shape[1]
+  - tx, ty, tw, th = [int(v) for v in bbox] → tx, ty, tw, th = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+
+### ✅ 결과
+- detector.py L110, L196: frame.shape[:2] → frame.shape[0], frame.shape[1]로 교체 완료`n- detector.py L230, L266: [int(v) for v in bbox] 언패킹 오류를 개별 인덱싱 할당으로 교체 완료
+
+
+---
+
+## [2026-06-20] detector.py 나머지 Pylance 오류 수정
+
+### 📌 계획
+- L17: cv2.inRange 파라미터가 튜플일 때 발생하는 UMat/ndarray 타입 불일치 오류를 np.array() 감싸기로 수정
+- L97: learn_zone 속성 할당 시 튜플 크기 미정(tuple[int,...]) 오류를 개별 요소 (coords[0], coords[1], coords[2], coords[3]) 명시적 할당으로 수정
+- L165, L258: cv2.TrackerCSRT_create를 인식하지 못하는 오탐지 오류에 대해 # type: ignore 추가
+
+### 🔧 변경 파일
+- detector.py (위 4곳 수정)
+
+### ✅ 결과
+- 작업 후 기록 예정
+
+---
+
+## [2026-06-20] 전역 코드 Pyright 오류 검토 및 수정
+
+### 📌 계획
+- Pyright를 이용해 모든 파일의 잠재적 타입/언패킹/임포트 오류 확인
+- 카메라, 모터 시리얼, 유틸 등 4건의 사소한 Pylance/Pyright False Positive 및 Type Hint 오류 수정
+
+### 🔧 변경 파일
+- camera.py L50: cv2.VideoWriter_fourcc 오탐지 무시 (getattr 우회)
+- motor_arduino.py L19, motor_esp32.py L14: serial 모듈 import 실패 시 None 명시적 할당으로 Unbound 에러 방지
+- serial_utils.py L9: 파라미터 타입 힌트를 set | None으로 수정
+
+### ✅ 결과
+- 전체 코드에서 Pylance/Pyright 오류 Zero(0) 달성 확인

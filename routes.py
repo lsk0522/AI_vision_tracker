@@ -322,25 +322,30 @@ def setup_routes(app):
         prog = det.get_learning_progress()
         # 학습 완료 스냅샷: 학습 영역 기준 썸네일
         thumb = None
-        if prog == 100 and state.current_frame is not None:
+        frame = state.current_frame
+        import numpy as np
+        if prog == 100 and isinstance(frame, np.ndarray):
             x, y, w, h = det.get_learn_zone()
-            img_h, img_w = state.current_frame.shape[:2]
+            img_h = frame.shape[0]
+            img_w = frame.shape[1]
             # 안전장치: 이미지 범위 밖으로 삐져나가지 않도록 제한
             x1 = max(0, min(img_w - 1, x))
             y1 = max(0, min(img_h - 1, y))
             x2 = max(0, min(img_w, x + w))
             y2 = max(0, min(img_h, y + h))
-            
+
             if x2 > x1 and y2 > y1:
-                roi = state.current_frame[y1:y2, x1:x2]
-                
+                roi: np.ndarray = frame[y1:y2, x1:x2]
+
                 # 썸네일을 파일로 영구 저장
                 os.makedirs("learning_data", exist_ok=True)
                 cv2.imwrite("learning_data/target_thumbnail.jpg", roi)
-                
-                _, buf = cv2.imencode('.jpg', roi, [cv2.IMWRITE_JPEG_QUALITY, 82])
-                thumb = "data:image/jpeg;base64," + base64.b64encode(buf).decode()
+
+                ok_enc, buf = cv2.imencode('.jpg', roi, [cv2.IMWRITE_JPEG_QUALITY, 82])
+                if ok_enc and buf is not None:
+                    thumb = "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
         return jsonify(progress=prog, done=(prog == 100), thumbnail=thumb, failed=state.learning_failed)
+
 
     @app.route('/target_thumbnail')
     def target_thumbnail():
@@ -488,38 +493,38 @@ def setup_routes(app):
 
     @app.route('/set_motor_config')
     def set_motor_config():
-        import motor as mot
+        import motor_esp32 as esp
         key   = request.args.get('key', '')
         value = request.args.get('value', '')
 
         if key == 'dead_zone':
             v = int(value)
             state.motor_dead_zone = v
-            mot.send_config('DZ', v)
+            esp.send_config('DZ', v)
         elif key == 'max_steps':
             v = int(value)
             state.motor_max_steps = v
-            mot.send_config('MS', v)
+            esp.send_config('MS', v)
         elif key == 'steps_per_px':
             v = float(value)
             state.motor_steps_per_px = v
-            mot.send_config('SP', int(v * 1000))
+            esp.send_config('SP', int(v * 1000))
         elif key == 'pulse_us':
             v = int(value)
             state.motor_pulse_us = v
-            mot.send_config('PU', v)
+            esp.send_config('PU', v)
         elif key == 'm1_invert':
             v = value.lower() == 'true'
             state.motor_m1_invert = v
-            mot.send_config('M1I', 1 if v else 0)
+            esp.send_config('M1I', 1 if v else 0)
         elif key == 'm2_invert':
             v = value.lower() == 'true'
             state.motor_m2_invert = v
-            mot.send_config('M2I', 1 if v else 0)
+            esp.send_config('M2I', 1 if v else 0)
         elif key == 'cmd_timeout_ms':
             v = int(value)
             state.motor_cmd_timeout_ms = v
-            mot.send_config('TO', v)
+            esp.send_config('TO', v)
         else:
             return "UNKNOWN KEY", 400
 
@@ -595,10 +600,11 @@ def setup_routes(app):
             steps_per_mm_m2=state.esp32_steps_per_mm_m2,
             max_speed_hz=state.esp32_max_speed_hz,
             accel_rate=state.esp32_accel_rate,
+            steps_per_px=state.motor_steps_per_px,   # 카메라 추적 탭용
             # 추적 모드 파라미터도 함께 반환
             dead_zone=state.motor_dead_zone,
             max_steps=state.motor_max_steps,
-            steps_per_px=state.motor_steps_per_px,
+            steps_per_px_legacy=state.motor_steps_per_px,
             pulse_us=state.motor_pulse_us,
             m1_invert=state.motor_m1_invert,
             m2_invert=state.motor_m2_invert,
@@ -623,32 +629,37 @@ def setup_routes(app):
             v = float(value)
             state.esp32_steps_per_mm_m1 = v
             # ESP32 CFG:SPM1:<val×10> 형태로 전송
-            esp.send_mm_config('SPM1', int(v * 10))
+            esp.send_config('SPM1', int(v * 10))
         elif key == 'steps_per_mm_m2':
             v = float(value)
             state.esp32_steps_per_mm_m2 = v
-            esp.send_mm_config('SPM2', int(v * 10))
+            esp.send_config('SPM2', int(v * 10))
         elif key == 'max_speed_hz':
             v = float(value)
             state.esp32_max_speed_hz = v
-            esp.send_mm_config('MSL', int(v))
+            esp.send_config('MSL', int(v))
         elif key == 'accel_rate':
             v = float(value)
             state.esp32_accel_rate = v
             # CFG:ACC:<val×10> 형태
-            esp.send_mm_config('ACC', int(v * 10))
+            esp.send_config('ACC', int(v * 10))
+        elif key == 'steps_per_pix':
+            v = float(value)
+            state.motor_steps_per_px = v
+            # CFG:SPX:<val×1000> 형태
+            esp.send_config('SPX', int(v * 1000))
         elif key == 'pulse_us':
             v = int(value)
             state.motor_pulse_us = v
-            esp.send_mm_config('PU', v)
+            esp.send_config('PU', v)
         elif key == 'm1_invert':
             v = value.lower() == 'true'
             state.motor_m1_invert = v
-            esp.send_mm_config('M1I', 1 if v else 0)
+            esp.send_config('M1I', 1 if v else 0)
         elif key == 'm2_invert':
             v = value.lower() == 'true'
             state.motor_m2_invert = v
-            esp.send_mm_config('M2I', 1 if v else 0)
+            esp.send_config('M2I', 1 if v else 0)
         else:
             return "UNKNOWN KEY", 400
 
@@ -759,6 +770,7 @@ def setup_routes(app):
         import motor_esp32 as esp
         import subprocess
         import time
+        from serial_utils import find_port as _find_port
 
         # 1. 시리얼 연결 해제 (업로드 중 포트 점유 방지)
         esp.safe_disconnect()
@@ -766,8 +778,9 @@ def setup_routes(app):
 
         port = state.motor_port
         if not port:
-            # 포트가 연결된 적 없다면 자동 감지 시도
-            port = esp._find_port()
+            # 포트가 연결된 적 없다면 serial_utils로 자동 감지 시도
+            _ESP32_VIDS = {0x10C4, 0x1A86, 0x0403}
+            port = _find_port(preferred_vids=_ESP32_VIDS)
             if not port:
                 return jsonify(ok=False, log="연결된 ESP32 포트를 찾을 수 없습니다.")
 

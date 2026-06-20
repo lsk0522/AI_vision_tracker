@@ -37,8 +37,8 @@ motor_cmd_timeout_ms = 600
 esp32_control_mode    = "track"
 esp32_steps_per_mm_m1 = 78.0
 esp32_steps_per_mm_m2 = 78.0
-esp32_max_speed_hz    = 750.0  # speed=5 기본값 (5 × 150Hz)
-esp32_accel_rate      = 5.0
+esp32_max_speed_hz    = 3000.0  # 1:5 기어비 교려, 최고속도 대폭 상향
+esp32_accel_rate      = 8.0     # 0→3000Hz 도달에 375ms (부드러운 1초미만 가속)
 
 # ESP32 mm 위치 피드백
 esp32_pos_m1_mm = 0.0
@@ -58,3 +58,24 @@ EXPECTED_FIRMWARE_VERSION = "2.0.0"
 # 실제로 연결된 ESP32가 보고한 버전
 firmware_version_actual   = ""      # VER: 수신 전까지 빈 문자열
 firmware_mismatch         = False   # True 이면 UI가 경고 모달을 표시
+
+# ── 모터 실시간 상태 (motor_status 라우트용) ─────────────
+motor_target_x  = 0
+motor_target_y  = 0
+motor_error_x   = 0
+motor_error_y   = 0
+motor_steps_m1  = 0
+motor_steps_m2  = 0
+motor_moving    = False
+motor_timeout   = False
+motor_stopped   = True
+
+# ── Arduino Uno 호환 파라미터 ─────────────────────────────
+# (device_type == "arduino" 선택 시 사용)
+arduino_steps_per_rev = 1600
+arduino_m1_max_speed  = 800
+arduino_m1_accel      = 400
+arduino_m2_max_speed  = 800
+arduino_m2_accel      = 400
+arduino_pos_m1        = 0
+arduino_pos_m2        = 0

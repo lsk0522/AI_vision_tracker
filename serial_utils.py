@@ -6,7 +6,7 @@ import sys
 import glob
 
 
-def find_port(preferred_vids: set = None):
+def find_port(preferred_vids: set | None = None):
     """
     시스템에서 사용 가능한 첫 번째 시리얼 포트를 반환.
     preferred_vids: 선호하는 USB VID 집합 (예: ESP32용 CP210x, CH340 등)

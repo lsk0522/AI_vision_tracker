@@ -84,26 +84,6 @@ def _sync_speed_to_esp32(speed: int):
         esp.send_config("MSL", hz)
 
 
-@bp.route('/joystick_dir')
-def joystick_dir():
-    import motor_esp32 as esp
-    try:
-        x = int(request.args.get('x', 0))
-        y = int(request.args.get('y', 0))
-    except (TypeError, ValueError):
-        return "INVALID", 400
-    if x == 0 and y == 0:
-        esp.stop_motors()
-        return "OK"
-    # dist = 10000mm: 사실상 무한 이동 — 조이스틱을 놓을 때 stop_motors()로 멈춤
-    # 실제 속도는 ESP32의 MAX_SPEED_LIMIT(MSL)이 제어 → 감도 슬라이더에 연동
-    dist = 10000.0
-    if x != 0:
-        esp.enqueue_move('M1', x * dist, is_absolute=False)
-    if y != 0:
-        esp.enqueue_move('M2', y * dist, is_absolute=False)
-    return "OK"
-
 
 @bp.route('/set_input_mode')
 def set_input_mode():

@@ -9,17 +9,23 @@ bp = Blueprint('motor', __name__)
 # ── 공통 상태 조회 ─────────────────────────────────────────
 @bp.route('/motor_status')
 def motor_status():
+    tx, ty = state.point[0], state.point[1]
+    ex, ey = tx - 320, ty - 240
+    steps1 = int(state.esp32_pos_m1_mm * state.esp32_steps_per_mm_m1)
+    steps2 = int(state.esp32_pos_m2_mm * state.esp32_steps_per_mm_m2)
+    moving = (abs(state.esp32_speed_m1) > 0.1 or abs(state.esp32_speed_m2) > 0.1)
+
     return jsonify(
         connected=state.motor_connected,
         port=state.motor_port,
-        target_x=state.motor_target_x,
-        target_y=state.motor_target_y,
-        error_x=state.motor_error_x,
-        error_y=state.motor_error_y,
-        steps_m1=state.motor_steps_m1,
-        steps_m2=state.motor_steps_m2,
-        moving=state.motor_moving,
-        timeout=state.motor_timeout,
+        target_x=tx,
+        target_y=ty,
+        error_x=ex,
+        error_y=ey,
+        steps_m1=steps1,
+        steps_m2=steps2,
+        moving=moving,
+        timeout=False,
     )
 
 
@@ -258,6 +264,7 @@ def arduino_home():
 @bp.route('/upload_firmware', methods=['POST'])
 def upload_firmware():
     import motor_esp32 as esp
+    state.pause_reconnect = True
     esp.safe_disconnect()
     time.sleep(1)
 
@@ -267,10 +274,11 @@ def upload_firmware():
         from motor_esp32 import _ESP32_VIDS
         port = find_port(preferred_vids=_ESP32_VIDS)
         if not port:
+            state.pause_reconnect = False
             return jsonify(ok=False, log="연결된 ESP32 포트를 찾을 수 없습니다.")
 
-    cmd = ["arduino-cli", "upload", "-p", port,
-           "--fqbn", "esp32:esp32:esp32doit-devkit-v1",
+    cmd = ["arduino-cli", "compile", "--upload", "-p", port,
+           "--fqbn", "esp32:esp32:d32",
            "esp32_firmware/esp32_firmware.ino"]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
@@ -281,5 +289,6 @@ def upload_firmware():
     except Exception as e:
         success, log_output = False, str(e)
 
+    state.pause_reconnect = False
     esp.connect(port)
     return jsonify(ok=success, log=log_output)

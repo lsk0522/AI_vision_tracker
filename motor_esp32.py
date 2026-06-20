@@ -11,6 +11,7 @@ try:
     import serial
     _serial_ok = True
 except ImportError:
+    serial = None  # type: ignore
     _serial_ok = False
     print("[esp32] pyserial 없음 → pip install pyserial")
 
@@ -47,7 +48,7 @@ def connect(port=None, baudrate=115200):
         return
 
     try:
-        new_ser = serial.Serial(port, baudrate, timeout=0.05)
+        new_ser = serial.Serial(port, baudrate, timeout=0.05)  # type: ignore
         time.sleep(2)   # ESP32 리셋 대기
         with _ser_lock:
             _ser  = new_ser
@@ -56,11 +57,12 @@ def connect(port=None, baudrate=115200):
         state.motor_connected = True
         state.motor_port = port
         print(f"[esp32] 연결: {port}")
-        # 연결 직후 현재 감도(MSL)를 ESP32에 즉시 동기화
-        hz = state.speed * 150
-        state.esp32_max_speed_hz = hz
-        _send(f"CFG:MSL:{hz}\n")
-        print(f"[esp32] 초기 속도 동기화: MSL={hz}Hz (speed={state.speed})")
+        # 연결 직후 속도 & 가속도를 ESP32에 즉시 동기화 (1:5 기어비 기반 설정값)
+        msl = int(state.esp32_max_speed_hz)
+        acc = int(state.esp32_accel_rate * 10)  # ACC 명령은 x10 배율
+        _send(f"CFG:MSL:{msl}\n")
+        _send(f"CFG:ACC:{acc}\n")
+        print(f"[esp32] 초기 동기화: MSL={msl}Hz, ACC={state.esp32_accel_rate}Hz/ms")
     except Exception as e:
         print(f"[esp32] 연결 실패 ({port}): {e}")
         state.motor_connected = False

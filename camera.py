@@ -47,7 +47,7 @@ def _open_camera(index):
         print(f"[camera] index {index} open failed — dummy mode")
         return cap
 
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    cap.set(cv2.CAP_PROP_FOURCC, getattr(cv2, 'VideoWriter_fourcc')(*'MJPG'))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  FRAME_W)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
     cap.set(cv2.CAP_PROP_FPS,          FRAME_FPS)

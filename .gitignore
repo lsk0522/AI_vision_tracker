@@ -8,3 +8,9 @@ captures/
 *.log
 
 turret_venv/
+
+*.bak
+*.bak[0-9]
+scratch/
+__pycache__/
+*.pyc
