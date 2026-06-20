@@ -1,5 +1,9 @@
 <div align="center">
 
+<img src="turret_diagram.png" width="450" alt="Turret 3D Model" />
+
+<br/>
+
 <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=30&pause=1000&color=00D4FF&center=true&vCenter=true&width=750&lines=🤖+AI+Vision+Tracker+(Turret);스마트+객체+추적+시스템;Vision+%2B+Motor+%2B+Web+UI" alt="Typing SVG" />
 
 <br/>
@@ -150,7 +154,7 @@ graph TD
 
 ### 비례 제어 (P-Control)
 
-$$\text{Steps} = \text{constrain}\!\left(\,|\text{Error}| \times \text{steps\_per\_px},\ 1,\ \text{max\_steps}\right)$$
+$$\text{Steps} = \text{constrain}(|\text{Error}| \times \text{steps/px}, 1, \text{max steps})$$
 
 - **오차 大** → 최대 스텝으로 고속 선회  
 - **오차 小** → 1~2 스텝으로 섬세하게 접근 (오버슈트 제거)  
