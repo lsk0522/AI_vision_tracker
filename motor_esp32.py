@@ -86,6 +86,14 @@ def safe_disconnect():
     state.motor_connected = False
 
 
+def release_motors():
+    """ESP32에 REL 명령 전송 → 홀딩 전류 즉시 해제.
+    프로그램 종료 시 또는 수동 해제 시 호출.
+    """
+    _send("REL\n")
+    print("[esp32] 모터 홀딩 전류 해제 (REL)")
+
+
 def _send(cmd: str):
     """Thread-safe 시리얼 쓰기."""
     global _ser

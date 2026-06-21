@@ -330,3 +330,21 @@
 
 ### ✅ 결과
 - 작업 후 기록 예정
+
+---
+
+## [2026-06-21] 프로그램 종료/유휴 시 모터 홀딩 해제
+
+### 📌 계획
+- Flask 서버 종료 시 (Ctrl+C / 프로세스 종료) ESP32에 모터 해제 명령 전송
+- ESP32 펌웨어: 일정 시간 명령이 없으면 모터 홀딩 전류 자동 해제 (Watchdog)
+- Python: atexit + signal 핸들러로 종료 시 RELEASE 명령 전송
+- motor_esp32.py: release_motors() 함수 추가
+
+### 🔧 변경 파일
+- esp32_firmware/esp32_firmware.ino: 무명령 Watchdog + CMD:REL 처리 추가
+- motor_esp32.py: release_motors() 함수 추가
+- main.py: atexit/signal 핸들러 등록
+
+### ✅ 결과
+- 작업 후 기록 예정
