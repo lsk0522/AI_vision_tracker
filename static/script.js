@@ -1106,9 +1106,14 @@ async function updateGallery() {
 }
 
 function openGalleryModal(index = 0) {
-    if (captures.length === 0) return;
-    activeCaptureIndex = index;
     galleryModal.style.display = "flex";
+    if (captures.length === 0) {
+        document.getElementById("gallery-active-img").src = "";
+        document.getElementById("gallery-img-info").textContent = "사진이 없습니다";
+        document.getElementById("gallery-thumbnails-list").innerHTML = "";
+        return;
+    }
+    activeCaptureIndex = index;
     renderActiveImage();
     renderGalleryThumbnails();
 }
@@ -1119,11 +1124,7 @@ function closeGalleryModal() {
 
 galleryBtn.addEventListener("click", async () => {
     await updateGallery();
-    if (captures.length > 0) {
-        openGalleryModal(0);
-    } else {
-        showToast('\uc544\uc9c1 \ucd2c\uc601\uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4 \u2014 \uc154\ud130 \ubc84\ud2bc\uc744 \ub20c\ub7ec\ubcf4\uc138\uc694', 'info');
-    }
+    openGalleryModal(0);
 });
 
 
@@ -2514,4 +2515,4 @@ if (btnStartUpload) {
             `;
         }
     });
-})();
+})();

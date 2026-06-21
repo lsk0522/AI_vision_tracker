@@ -773,6 +773,7 @@ def setup_routes(app):
         from serial_utils import find_port as _find_port
 
         # 1. 시리얼 연결 해제 (업로드 중 포트 점유 방지)
+        state.pause_reconnect = True
         esp.safe_disconnect()
         time.sleep(1) # 포트 해제 대기
 
@@ -805,6 +806,8 @@ def setup_routes(app):
             log_output = str(e)
 
         # 3. 다시 연결 시도
-        esp.connect(port)
+        state.pause_reconnect = False
+        if port:
+            esp.connect(port)
 
         return jsonify(ok=success, log=log_output)
