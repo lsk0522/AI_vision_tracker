@@ -786,9 +786,9 @@ def setup_routes(app):
 
         # 2. 컴파일 및 업로드 명령어 실행
         cmd = [
-            "arduino-cli", "upload",
+            "arduino-cli", "compile", "--upload",
             "-p", port,
-            "--fqbn", "esp32:esp32:esp32doit-devkit-v1",
+            "--fqbn", "esp32:esp32:d32",
             "esp32_firmware/esp32_firmware.ino"
         ]
         

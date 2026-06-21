@@ -319,8 +319,8 @@ function checkJoystickDir() {
     
     const now = Date.now();
     const dirChanged = (newDirX !== joyDirX || newDirY !== joyDirY);
-    // 조이스틱을 누르고 있는 동안 매 200ms마다 재전송 (모터가 dist를 다 소진 후 멈춰도 다시 구동)
-    const shouldResend = (newDirX !== 0 || newDirY !== 0) && (now - _joyLastSend > 200);
+    // 조이스틱을 누르고 있는 동안 매 80ms마다 재전송 (모터가 dist를 다 소진 후 멈춰도 다시 구동)
+    const shouldResend = (newDirX !== 0 || newDirY !== 0) && (now - _joyLastSend > 80);
     
     if (dirChanged || shouldResend) {
         joyDirX = newDirX;
