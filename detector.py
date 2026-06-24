@@ -371,18 +371,25 @@ def _run():
             last_id = frame_id
 
             # ── 추적 ────────────────────────────────────────
-            motion = _motion_mask(frame, prev_frame) if prev_frame is not None else None
-            prev_frame = frame.copy()
-
             ball = None
+            motion = None
 
-            # 1) CSRT AI 트래커
-            if _csrt.active:
-                ball = _csrt.track(frame, motion)
+            # 수동 모드일 때는 무거운 모션 마스크 및 트래킹을 생략 (단, 학습 중이 아닐 때)
+            if state.control_mode == 'auto' or _csrt.learning:
+                motion = _motion_mask(frame, prev_frame) if prev_frame is not None else None
+                prev_frame = frame.copy()
 
-            # 2) ORB 실패 → Hough Circle (흰 공 등 원형 물체 대응)
-            if ball is None and motion is not None:
-                ball = _circle.detect(frame, motion)
+                # 1) CSRT AI 트래커
+                if _csrt.active:
+                    ball = _csrt.track(frame, motion)
+
+                # 2) ORB 실패 → Hough Circle (흰 공 등 원형 물체 대응)
+                if ball is None and motion is not None:
+                    ball = _circle.detect(frame, motion)
+            else:
+                # 수동 모드 최적화: prev_frame만 최소한으로 유지
+                if prev_frame is None:
+                    prev_frame = frame.copy()
 
             # ── 칼만 갱신 ────────────────────────────────────
             if ball:

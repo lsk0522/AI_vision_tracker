@@ -88,6 +88,29 @@ def _get_fallback_frame():
 # ── Open initial camera ────────────────────────────────────────────
 _cap = _open_camera(_camera_index)
 
+# ── Background Capture Thread ──────────────────────────────────────
+_thread_running = True
+def _capture_loop():
+    global _cap
+    while _thread_running:
+        frame = None
+        with _cap_lock:
+            if _cap and _cap.isOpened():
+                # Read as fast as possible to drain the buffer
+                ok, raw = _cap.read()
+                if ok and raw is not None:
+                    frame = raw
+        
+        if frame is not None:
+            if state.flip_enabled:
+                frame = cv2.flip(frame, 1)
+            state.current_frame = frame.copy()
+        else:
+            time.sleep(0.01)
+
+_capture_thread = threading.Thread(target=_capture_loop, daemon=True)
+_capture_thread.start()
+
 
 def set_camera_index(index: int):
     """Switch to a different camera index at runtime."""
@@ -141,83 +164,100 @@ def list_cameras(max_test=6):
 
 
 def gen_frames():
-    """Yield MJPEG frames for the /video stream."""
-    global _cap
+    """Yield MJPEG frames for the /video stream (Optimized)."""
+    last_id = None
+    last_buffer = None
     while True:
-        frame = None
-
-        with _cap_lock:
-            if _cap and _cap.isOpened():
-                ok, raw = _cap.read()
-                if ok and raw is not None:
-                    frame = raw
+        frame = state.current_frame
 
         if frame is None:
             time.sleep(0.033)
-            frame = _get_fallback_frame()
+            if last_buffer is None:
+                frame = _get_fallback_frame()
+                _, last_buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
         else:
-            if state.flip_enabled:
-                frame = cv2.flip(frame, 1)
+            frame_id = id(frame)
+            if frame_id == last_id and last_buffer is not None:
+                time.sleep(0.01)
+            else:
+                last_id = frame_id
+                ret, last_buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
+                if not ret:
+                    continue
 
-        state.current_frame = frame.copy()
-
-        ret, buffer = cv2.imencode('.jpg', frame,
-                                   [cv2.IMWRITE_JPEG_QUALITY, 82])
-        if not ret:
-            continue
-        yield (
-            b'--frame\r\n'
-            b'Content-Type: image/jpeg\r\n\r\n' +
-            buffer.tobytes() +
-            b'\r\n'
-        )
-
+        if last_buffer is not None:
+            yield (
+                b'--frame
+'
+                b'Content-Type: image/jpeg
+
+' +
+                last_buffer.tobytes() +
+                b'
+'
+            )
 
 def gen_debug_frames():
-    """Yield MJPEG frames with detection overlay for /video_debug."""
+    """Yield MJPEG frames with detection overlay for /video_debug (Optimized)."""
+    last_id = None
+    last_ball_id = None
+    last_buffer = None
     while True:
         frame = state.current_frame
         if frame is None:
             time.sleep(0.03)
             continue
 
-        vis  = frame.copy()
         ball = state.ball
+        frame_id = id(frame)
+        ball_id = id(ball) if ball else None
 
-        if ball:
-            lost  = state.ball_lost
-            det   = ball.get("detector", "orb")
-            color = (0, 165, 255) if lost else (
-                (255, 200, 0) if det == "hough" else (0, 255, 0)
-            )
-
-            if not ball.get("predicted", False) and "x" in ball:
-                cv2.rectangle(vis,
-                    (ball["x"], ball["y"]),
-                    (ball["x"] + ball["w"], ball["y"] + ball["h"]),
-                    color, 2)
-                if det == "hough":
-                    r = ball["w"] // 2
-                    cv2.circle(vis, (ball["cx"], ball["cy"]), r, color, 2)
-
-            pcx = ball.get("predicted_cx", ball["cx"])
-            pcy = ball.get("predicted_cy", ball["cy"])
-            cv2.drawMarker(vis, (pcx, pcy), color, cv2.MARKER_CROSS, 22, 2)
-            label = "PREDICTING" if lost else (
-                f"Hough  r={ball['w']//2}px" if det == "hough"
-                else f"ORB  matches={ball.get('matches','?')}"
-            )
-            cv2.putText(vis, label, (10, 28),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.62, color, 2)
+        if frame_id == last_id and ball_id == last_ball_id and last_buffer is not None:
+            time.sleep(0.01)
         else:
-            cv2.putText(vis, "No object", (10, 28),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.62, (80, 80, 80), 2)
+            last_id = frame_id
+            last_ball_id = ball_id
+            vis  = frame.copy()
 
-        _, buffer = cv2.imencode('.jpg', vis, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        yield (
-            b'--frame\r\n'
-            b'Content-Type: image/jpeg\r\n\r\n' +
-            buffer.tobytes() +
-            b'\r\n'
-        )
-        time.sleep(0.033)
+            if ball:
+                lost  = state.ball_lost
+                det   = ball.get("detector", "orb")
+                color = (0, 165, 255) if lost else (
+                    (255, 200, 0) if det == "hough" else (0, 255, 0)
+                )
+
+                if not ball.get("predicted", False) and "x" in ball:
+                    cv2.rectangle(vis,
+                        (ball["x"], ball["y"]),
+                        (ball["x"] + ball["w"], ball["y"] + ball["h"]),
+                        color, 2)
+                    if det == "hough":
+                        r = ball["w"] // 2
+                        cv2.circle(vis, (ball["cx"], ball["cy"]), r, color, 2)
+
+                pcx = ball.get("predicted_cx", ball["cx"])
+                pcy = ball.get("predicted_cy", ball["cy"])
+                cv2.drawMarker(vis, (pcx, pcy), color, cv2.MARKER_CROSS, 22, 2)
+                label = "PREDICTING" if lost else (
+                    f"Hough  r={ball['w']//2}px" if det == "hough"
+                    else f"ORB  matches={ball.get('matches','?')}"
+                )
+                cv2.putText(vis, label, (10, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.62, color, 2)
+            else:
+                cv2.putText(vis, "No object", (10, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.62, (80, 80, 80), 2)
+
+            _, last_buffer = cv2.imencode('.jpg', vis, [cv2.IMWRITE_JPEG_QUALITY, 80])
+
+        if last_buffer is not None:
+            yield (
+                b'--frame
+'
+                b'Content-Type: image/jpeg
+
+' +
+                last_buffer.tobytes() +
+                b'
+'
+            )

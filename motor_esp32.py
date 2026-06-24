@@ -22,7 +22,6 @@ _port     = None
 _ser_lock = threading.Lock()
 
 # ── 위치 제어 우선순위 큐 ──────────────────────────────────
-_move_queue          = queue.PriorityQueue(maxsize=20)
 _seq_counter         = 0
 _seq_lock            = threading.Lock()
 _first_pos_sync      = True
@@ -243,54 +242,6 @@ def _get_next_seq():
         return _seq_counter
 
 
-def enqueue_move(target: str, val: float, is_absolute: bool = True):
-    """이동 명령을 우선순위 큐에 추가."""
-    global _move_queue
-    axis = target.upper().replace(' ', '')
-
-    # 큐가 비었으면 queued target을 실제 위치에 동기화
-    if _move_queue.empty():
-        state.last_queued_target_m1 = state.esp32_pos_m1_mm
-        state.last_queued_target_m2 = state.esp32_pos_m2_mm
-
-    valid_axes = [a.strip() for a in axis.split(',') if a.strip() in ('M1', 'M2')]
-    if not valid_axes:
-        return False
-
-    # M1,M2 동시 이동
-    if len(valid_axes) == 2:
-        if is_absolute:
-            target_abs, priority = val, 10
-        else:
-            target_abs, priority = state.last_queued_target_m1 + val, 20
-        state.last_queued_target_m1 = target_abs
-        state.last_queued_target_m2 = target_abs
-        try:
-            _move_queue.put_nowait((_get_next_seq(), priority, 'M1,M2', target_abs))
-        except queue.Full:
-            pass
-        return True
-
-    # 단일 축
-    a = valid_axes[0]
-    if is_absolute:
-        target_abs, priority = val, 10
-    else:
-        base = state.last_queued_target_m1 if a == 'M1' else state.last_queued_target_m2
-        target_abs, priority = base + val, 20
-
-    if a == 'M1':
-        state.last_queued_target_m1 = target_abs
-    else:
-        state.last_queued_target_m2 = target_abs
-
-    try:
-        _move_queue.put_nowait((_get_next_seq(), priority, a, target_abs))
-    except queue.Full:
-        pass
-    return True
-
-
 def move_mm(target: str, mm: float):
     """절대 위치 이동 (큐 추가)."""
     return enqueue_move(target, mm, is_absolute=True)
@@ -299,55 +250,6 @@ def move_mm(target: str, mm: float):
 def move_relative_mm(target: str, delta: float):
     """상대 위치 이동 (큐 추가)."""
     return enqueue_move(target, delta, is_absolute=False)
-
-
-def _queue_worker():
-    while True:
-        try:
-            seq, priority, axis, target_mm = _move_queue.get(timeout=0.1)
-        except queue.Empty:
-            continue
-
-        with _ser_lock:
-            connected = _ser is not None and _ser.is_open
-        if not connected:
-            _move_queue.task_done()
-            continue
-
-        _abort_event.clear()
-
-        # POS 모드 자동 전환
-        if state.esp32_control_mode != "pos":
-            _send("MODE:POS\n")
-            state.esp32_control_mode = "pos"
-            time.sleep(0.1)
-
-        cmd = f"MOVE J {axis} {target_mm:.3f}\n"
-        _send(cmd)
-
-        dist = 0.0
-        if 'M1' in axis:
-            dist = max(dist, abs(target_mm - state.esp32_pos_m1_mm))
-        if 'M2' in axis:
-            dist = max(dist, abs(target_mm - state.esp32_pos_m2_mm))
-
-        max_spd = state.esp32_max_speed_hz / max(state.esp32_steps_per_mm_m1, 1)
-        timeout = min(8.0, max(2.0, dist / max_spd * 3.0 + 2.0) if max_spd > 0 else 2.0)
-
-        DONE_THRESHOLD = 0.30
-        start_time = time.time()
-        time.sleep(0.05)
-
-        while time.time() - start_time < timeout:
-            if _abort_event.is_set():
-                break
-            m1_ok = (abs(state.esp32_pos_m1_mm - target_mm) < DONE_THRESHOLD) if 'M1' in axis else True
-            m2_ok = (abs(state.esp32_pos_m2_mm - target_mm) < DONE_THRESHOLD) if 'M2' in axis else True
-            if m1_ok and m2_ok:
-                break
-            time.sleep(0.01)
-
-        _move_queue.task_done()
 
 
 def set_home():
@@ -365,7 +267,12 @@ def set_home():
 
 
 def stop_motors():
-    """활성 이동 중단 및 큐 비우기."""
+    """모든 모터 정지 및 큐 초기화 (S명령 없이 자연 감속)"""
+    state.motor_stopped = True
+    state.motor_moving = False
+    # S명령은 펌웨어에서 즉시 속도를 0으로 만들어버려 기구적 충격(티디디딕)을 유발하므로 주석 처리.
+    # joystick_dir()에서 유지하던 +5.0mm 타겟을 그대로 두면, 펌웨어가 5.0mm를 이동하면서 스스로 부드럽게 감속하여 정지함.
+    # _send("S\n")
     _abort_event.set()
     while not _move_queue.empty():
         try:
@@ -373,9 +280,10 @@ def stop_motors():
             _move_queue.task_done()
         except Exception:
             break
-    state.last_queued_target_m1 = state.esp32_pos_m1_mm
-    state.last_queued_target_m2 = state.esp32_pos_m2_mm
-    _send("S\n")
+    # 자연스러운 감속을 위해 가상 타겟(last_queued_target)을 현재 위치로 강제 리셋하지 않습니다.
+    # 이렇게 하면 펌웨어가 남은 오차(lag)만큼 스스로 부드럽게 이동하며 정지합니다.
+    # state.last_queued_target_m1 = state.esp32_pos_m1_mm
+    # state.last_queued_target_m2 = state.esp32_pos_m2_mm
 
 
 def start(port=None):
