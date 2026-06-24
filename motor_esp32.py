@@ -286,7 +286,7 @@ def stop_motors():
 
 
 def start(port=None):
-    global _thread,
+    global _thread
     connect(port)
     _thread = threading.Thread(target=_run, daemon=True)
     _thread.start()
