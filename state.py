@@ -27,18 +27,18 @@ device_type = "esp32"   # "esp32" | "arduino"
 # ── ESP32 런타임 파라미터 (CFG: 명령으로 동기화) ──────────
 motor_dead_zone      = 8
 motor_max_steps      = 25
-motor_steps_per_px   = 0.060
+motor_steps_per_px   = 3.5
 motor_pulse_us       = 5
 motor_m1_invert      = False
 motor_m2_invert      = True   # 수직(Tilt) 모터는 물리적으로 반전 — 기본값 True
 motor_cmd_timeout_ms = 600
 
 # ── ESP32 mm 위치 제어 ────────────────────────────────────
-esp32_control_mode    = "track"
+esp32_control_mode    = "pos"
 esp32_steps_per_mm_m1 = 78.0
 esp32_steps_per_mm_m2 = 78.0
 esp32_max_speed_hz    = 3000.0  # 1:5 기어비 교려, 최고속도 대폭 상향
-esp32_accel_rate      = 8.0     # 0→3000Hz 도달에 375ms (부드러운 1초미만 가속)
+esp32_accel_rate      = 40.0     # 0→3000Hz 도달에 375ms (부드러운 1초미만 가속)
 
 # ESP32 mm 위치 피드백
 esp32_pos_m1_mm = 0.0
