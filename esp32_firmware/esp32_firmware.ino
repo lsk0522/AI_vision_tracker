@@ -271,18 +271,21 @@ void parseCommand(String cmd) {
 
   // STATUS / POS
   if (upper == "STATUS" || upper == "POS") {
+    lastCmdMs = millis();
     sendPosStatus();
     return;
   }
 
   // MODE (호환용)
   if (upper == "MODE:POS" || upper == "MODE:TRACK") {
+    lastCmdMs = millis();
     Serial.print("OK "); Serial.println(upper);
     return;
   }
 
   // CFG
   if (upper.startsWith("CFG:")) {
+    lastCmdMs = millis();
     int sep1 = cmd.indexOf(':', 4);
     if (sep1 < 0) return;
     String key = cmd.substring(4, sep1); key.toUpperCase();
