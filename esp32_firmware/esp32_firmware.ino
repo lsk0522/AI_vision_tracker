@@ -218,8 +218,8 @@ void setTargetAngles(float angleM1, float angleM2) {
     if (angleM1 < -limitM1) angleM1 = -limitM1;
     if (angleM1 > limitM1)  angleM1 = limitM1;
 
-    targetPosM1 = (long)(angleM1 * STEPS_PER_DEG_M1);
-    targetPosM2 = (long)(angleM2 * STEPS_PER_DEG_M2);
+    targetPosM1 = round(angleM1 * STEPS_PER_DEG_M1);
+    targetPosM2 = round(angleM2 * STEPS_PER_DEG_M2);
 }
 
 void parseCommand(String cmd) {
@@ -319,7 +319,16 @@ void parseCommand(String cmd) {
     float targetAngleM1 = targetPosM1 / STEPS_PER_DEG_M1;
     float targetAngleM2 = targetPosM2 / STEPS_PER_DEG_M2;
 
-    if (argsU.startsWith("M1,M2") || argsU.startsWith("M1, M2")) {
+    if (argsU.startsWith("XY ")) {
+      String vals = args.substring(3); vals.trim();
+      int space2 = vals.indexOf(' ');
+      if (space2 > 0) {
+        float v1 = vals.substring(0, space2).toFloat();
+        float v2 = vals.substring(space2 + 1).toFloat();
+        setTargetAngles(v1, v2);
+        Serial.print("OK MOVE J XY "); Serial.print(v1); Serial.print(" "); Serial.println(v2);
+      }
+    } else if (argsU.startsWith("M1,M2") || argsU.startsWith("M1, M2")) {
       setTargetAngles(val, val);
       Serial.print("OK MOVE J M1,M2 "); Serial.println(val);
     } else if (argsU.startsWith("M1")) {

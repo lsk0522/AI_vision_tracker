@@ -129,10 +129,8 @@ def joystick_dir():
         if state.last_queued_target_m1 < -limit_m1: state.last_queued_target_m1 = -limit_m1
         if state.last_queued_target_m1 > limit_m1:  state.last_queued_target_m1 = limit_m1
 
-        if x != 0:
-            esp._send(f"MOVE J M1 {state.last_queued_target_m1:.3f}\n")
-        if y != 0:
-            esp._send(f"MOVE J M2 {state.last_queued_target_m2:.3f}\n")
+        if x != 0 or y != 0:
+            esp._send(f"MOVE J XY {state.last_queued_target_m1:.3f} {state.last_queued_target_m2:.3f}\n")
         
     return "OK"
 
