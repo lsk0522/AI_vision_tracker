@@ -76,7 +76,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#define FIRMWARE_VERSION "2.0.6"
+#define FIRMWARE_VERSION "2.0.7"
 
 // 핀 정의
 #define M1_ENA 13
@@ -113,6 +113,8 @@ long targetPosM1 = 0, currentPosM1 = 0;
 long targetPosM2 = 0, currentPosM2 = 0;
 float currentSpeedM1 = 0.0f;
 float currentSpeedM2 = 0.0f;
+bool stoppingM1 = false;
+bool stoppingM2 = false;
 unsigned long lastPulseTimeM1 = 0, lastPulseTimeM2 = 0;
 unsigned long lastAccelTimeM1 = 0, lastAccelTimeM2 = 0;
 unsigned long lastStatusMs    = 0;
@@ -242,62 +244,110 @@ void stepMotors(unsigned long curUs, unsigned long curMs) {
   if (!motorsEnabled) return;
 
   // M1
-  long remM1 = targetPosM1 - currentPosM1;
-  if (remM1 != 0) {
-    bool dir1 = (remM1 > 0) ^ M1_INVERT;
-    digitalWrite(M1_DIR, dir1 ? HIGH : LOW);
-    float wallSpd1 = min(MAX_SPEED_LIMIT, (float)abs(remM1) * 8.0f);
-    if (wallSpd1 < 8.0f) wallSpd1 = 8.0f;
-
-    if (curMs - lastAccelTimeM1 >= 1) {
-      lastAccelTimeM1 = curMs;
-      if (currentSpeedM1 < wallSpd1) {
-        currentSpeedM1 += ACCELERATION_RATE;
-        if (currentSpeedM1 > wallSpd1) currentSpeedM1 = wallSpd1;
-      } else if (currentSpeedM1 > wallSpd1) {
-        currentSpeedM1 -= ACCELERATION_RATE;
-        if (currentSpeedM1 < wallSpd1) currentSpeedM1 = wallSpd1;
-      }
-    }
-
+  if (stoppingM1) {
     if (currentSpeedM1 > 5.0f) {
-      unsigned long interval = (unsigned long)(1000000.0f / currentSpeedM1);
-      if (curUs - lastPulseTimeM1 >= interval) {
-        lastPulseTimeM1 = curUs;
-        digitalWrite(M1_PUL, LOW); delayMicroseconds(10); digitalWrite(M1_PUL, HIGH);
-        currentPosM1 += (remM1 > 0) ? 1 : -1;
+      if (curMs - lastAccelTimeM1 >= 1) {
+        lastAccelTimeM1 = curMs;
+        currentSpeedM1 -= (ACCELERATION_RATE * 5.0f);
+        if (currentSpeedM1 < 5.0f) currentSpeedM1 = 0.0f;
       }
+      if (currentSpeedM1 > 5.0f) {
+        unsigned long interval = (unsigned long)(1000000.0f / currentSpeedM1);
+        if (curUs - lastPulseTimeM1 >= interval) {
+          lastPulseTimeM1 = curUs;
+          digitalWrite(M1_PUL, LOW); delayMicroseconds(10); digitalWrite(M1_PUL, HIGH);
+          bool isPos = digitalRead(M1_DIR) == HIGH;
+          if (M1_INVERT) isPos = !isPos;
+          currentPosM1 += isPos ? 1 : -1;
+        }
+      }
+    } else {
+      currentSpeedM1 = 0.0f;
+      stoppingM1 = false;
+      targetPosM1 = currentPosM1;
     }
-  } else { currentSpeedM1 = 0.0f; }
+  } else {
+    long remM1 = targetPosM1 - currentPosM1;
+    if (remM1 != 0) {
+      bool dir1 = (remM1 > 0) ^ M1_INVERT;
+      digitalWrite(M1_DIR, dir1 ? HIGH : LOW);
+      float wallSpd1 = min(MAX_SPEED_LIMIT, (float)abs(remM1) * 8.0f);
+      if (wallSpd1 < 8.0f) wallSpd1 = 8.0f;
+
+      if (curMs - lastAccelTimeM1 >= 1) {
+        lastAccelTimeM1 = curMs;
+        if (currentSpeedM1 < wallSpd1) {
+          currentSpeedM1 += ACCELERATION_RATE;
+          if (currentSpeedM1 > wallSpd1) currentSpeedM1 = wallSpd1;
+        } else if (currentSpeedM1 > wallSpd1) {
+          currentSpeedM1 -= ACCELERATION_RATE;
+          if (currentSpeedM1 < wallSpd1) currentSpeedM1 = wallSpd1;
+        }
+      }
+
+      if (currentSpeedM1 > 5.0f) {
+        unsigned long interval = (unsigned long)(1000000.0f / currentSpeedM1);
+        if (curUs - lastPulseTimeM1 >= interval) {
+          lastPulseTimeM1 = curUs;
+          digitalWrite(M1_PUL, LOW); delayMicroseconds(10); digitalWrite(M1_PUL, HIGH);
+          currentPosM1 += (remM1 > 0) ? 1 : -1;
+        }
+      }
+    } else { currentSpeedM1 = 0.0f; }
+  }
 
   // M2
-  long remM2 = targetPosM2 - currentPosM2;
-  if (remM2 != 0) {
-    bool dir2 = (remM2 > 0) ^ M2_INVERT;
-    digitalWrite(M2_DIR, dir2 ? HIGH : LOW);
-    float wallSpd2 = min(MAX_SPEED_LIMIT, (float)abs(remM2) * 8.0f);
-    if (wallSpd2 < 8.0f) wallSpd2 = 8.0f;
-
-    if (curMs - lastAccelTimeM2 >= 1) {
-      lastAccelTimeM2 = curMs;
-      if (currentSpeedM2 < wallSpd2) {
-        currentSpeedM2 += ACCELERATION_RATE;
-        if (currentSpeedM2 > wallSpd2) currentSpeedM2 = wallSpd2;
-      } else if (currentSpeedM2 > wallSpd2) {
-        currentSpeedM2 -= ACCELERATION_RATE;
-        if (currentSpeedM2 < wallSpd2) currentSpeedM2 = wallSpd2;
-      }
-    }
-
+  if (stoppingM2) {
     if (currentSpeedM2 > 5.0f) {
-      unsigned long interval = (unsigned long)(1000000.0f / currentSpeedM2);
-      if (curUs - lastPulseTimeM2 >= interval) {
-        lastPulseTimeM2 = curUs;
-        digitalWrite(M2_PUL, LOW); delayMicroseconds(10); digitalWrite(M2_PUL, HIGH);
-        currentPosM2 += (remM2 > 0) ? 1 : -1;
+      if (curMs - lastAccelTimeM2 >= 1) {
+        lastAccelTimeM2 = curMs;
+        currentSpeedM2 -= (ACCELERATION_RATE * 5.0f);
+        if (currentSpeedM2 < 5.0f) currentSpeedM2 = 0.0f;
       }
+      if (currentSpeedM2 > 5.0f) {
+        unsigned long interval = (unsigned long)(1000000.0f / currentSpeedM2);
+        if (curUs - lastPulseTimeM2 >= interval) {
+          lastPulseTimeM2 = curUs;
+          digitalWrite(M2_PUL, LOW); delayMicroseconds(10); digitalWrite(M2_PUL, HIGH);
+          bool isPos = digitalRead(M2_DIR) == HIGH;
+          if (M2_INVERT) isPos = !isPos;
+          currentPosM2 += isPos ? 1 : -1;
+        }
+      }
+    } else {
+      currentSpeedM2 = 0.0f;
+      stoppingM2 = false;
+      targetPosM2 = currentPosM2;
     }
-  } else { currentSpeedM2 = 0.0f; }
+  } else {
+    long remM2 = targetPosM2 - currentPosM2;
+    if (remM2 != 0) {
+      bool dir2 = (remM2 > 0) ^ M2_INVERT;
+      digitalWrite(M2_DIR, dir2 ? HIGH : LOW);
+      float wallSpd2 = min(MAX_SPEED_LIMIT, (float)abs(remM2) * 8.0f);
+      if (wallSpd2 < 8.0f) wallSpd2 = 8.0f;
+
+      if (curMs - lastAccelTimeM2 >= 1) {
+        lastAccelTimeM2 = curMs;
+        if (currentSpeedM2 < wallSpd2) {
+          currentSpeedM2 += ACCELERATION_RATE;
+          if (currentSpeedM2 > wallSpd2) currentSpeedM2 = wallSpd2;
+        } else if (currentSpeedM2 > wallSpd2) {
+          currentSpeedM2 -= ACCELERATION_RATE;
+          if (currentSpeedM2 < wallSpd2) currentSpeedM2 = wallSpd2;
+        }
+      }
+
+      if (currentSpeedM2 > 5.0f) {
+        unsigned long interval = (unsigned long)(1000000.0f / currentSpeedM2);
+        if (curUs - lastPulseTimeM2 >= interval) {
+          lastPulseTimeM2 = curUs;
+          digitalWrite(M2_PUL, LOW); delayMicroseconds(10); digitalWrite(M2_PUL, HIGH);
+          currentPosM2 += (remM2 > 0) ? 1 : -1;
+        }
+      }
+    } else { currentSpeedM2 = 0.0f; }
+  }
 }
 
 void sendPosStatus() {
@@ -357,6 +407,8 @@ void parseCommand(String cmd) {
 
   // T:x:y
   if (upper.startsWith("T:")) {
+    stoppingM1 = false;
+    stoppingM2 = false;
     lastCmdMs = millis();
     userReleased = false;
     if (!motorsEnabled) enableMotors();
@@ -375,8 +427,8 @@ void parseCommand(String cmd) {
 
   // S
   if (upper == "S") {
-    targetPosM1 = currentPosM1; targetPosM2 = currentPosM2;
-    currentSpeedM1 = 0.0f;     currentSpeedM2 = 0.0f;
+    stoppingM1 = true;
+    stoppingM2 = true;
     Serial.println("OK S");
     return;
   }
@@ -428,6 +480,8 @@ void parseCommand(String cmd) {
 
   // MOVE J
   if (upper.startsWith("MOVE J ")) {
+    stoppingM1 = false;
+    stoppingM2 = false;
     lastCmdMs = millis();
     userReleased = false;
     if (!motorsEnabled) enableMotors();
