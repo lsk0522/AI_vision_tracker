@@ -189,7 +189,7 @@ void motorTask(void *pvParameters) {
     bool isIdle = (remM1 == 0 && remM2 == 0);
 
     if (isJogging) {
-      if (curMs - lastJogMs > 150) {
+      if (curMs - lastJogMs > 350) {
         isJogging = false;
         targetPosM1 = currentPosM1;
         targetPosM2 = currentPosM2;

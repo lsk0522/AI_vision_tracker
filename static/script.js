@@ -499,7 +499,7 @@ function loop(timestamp){
         
         if (inputMode === "joystick") {
             const now = Date.now();
-            if (now - lastSync > 20) {
+            if (now - lastSync > 80) {
                 const shapeJoy = (v) => {
                     const dead = 0.06;
                     const a = Math.abs(v);
@@ -531,9 +531,7 @@ function loop(timestamp){
                     joySendY = 0;
                     if (_joySent) {
                         joySeq++;
-                        if (joyAbortController) joyAbortController.abort();
-                        joyAbortController = new AbortController();
-                        fetch(`/joystick_dir?x=0&y=0&seq=${joySeq}`, { signal: joyAbortController.signal }).catch(()=>{});
+                        fetch(`/joystick_dir?x=0&y=0&seq=${joySeq}`).catch(()=>{});
                         lastSync = now;
                         _joySent = false;
                     }
@@ -544,18 +542,14 @@ function loop(timestamp){
                 if (Math.abs(joySendX) > 0.01 || Math.abs(joySendY) > 0.01) {
                     const speedMult = maxSpeed / 5.0;
                     joySeq++;
-                    if (joyAbortController) joyAbortController.abort();
-                    joyAbortController = new AbortController();
-                    fetch(`/joystick_dir?x=${(joySendX * speedMult).toFixed(3)}&y=${(joySendY * speedMult).toFixed(3)}&seq=${joySeq}`, { signal: joyAbortController.signal }).catch(()=>{});
+                    fetch(`/joystick_dir?x=${(joySendX * speedMult).toFixed(3)}&y=${(joySendY * speedMult).toFixed(3)}&seq=${joySeq}`).catch(()=>{});
                     lastSync = now;
                     _joySent = true;
                 } else if (_joySent) {
                     joySendX = 0;
                     joySendY = 0;
                     joySeq++;
-                    if (joyAbortController) joyAbortController.abort();
-                    joyAbortController = new AbortController();
-                    fetch(`/joystick_dir?x=0&y=0&seq=${joySeq}`, { signal: joyAbortController.signal }).catch(()=>{});
+                    fetch(`/joystick_dir?x=0&y=0&seq=${joySeq}`).catch(()=>{});
                     lastSync = now;
                     _joySent = false;
                 }
