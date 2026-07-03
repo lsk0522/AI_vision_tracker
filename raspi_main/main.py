@@ -1,6 +1,7 @@
 import atexit
 import signal
 import sys
+import socket
 
 from flask import Flask
 from routes import setup_routes
@@ -8,6 +9,19 @@ import detector
 import motor_esp32
 import motor_arduino
 import state
+import cli_ui
+
+def get_local_ip():
+    """자신의 실제 로컬 네트워크 IP를 가져옵니다."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # 구글 퍼블릭 DNS로 더미 연결을 시도하여 자신의 실제 라우팅 IP를 알아냄
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 
 _cleaned_up = False
@@ -71,10 +85,13 @@ motor_arduino.start() # Arduino 연결
 
 try:
     import waitress
+    local_ip = get_local_ip()
     print("✔ All systems go!")
-    print("=> Waitress Production Server running at http://0.0.0.0:5000/")
+    print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
     print("Press Ctrl+C to quit")
     waitress.serve(app, host='0.0.0.0', port=5000)
 except ImportError:
+    local_ip = get_local_ip()
     print("! Waitress not found, using Flask Dev Server")
+    print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
