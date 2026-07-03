@@ -33,7 +33,7 @@ def generate_dashboard() -> Layout:
     """화면 갱신 시마다 호출되어 레이아웃(표+로그)을 반환"""
     layout = Layout()
     layout.split_column(
-        Layout(name="header", size=10),
+        Layout(name="header", size=12),
         Layout(name="body")
     )
     
@@ -56,6 +56,22 @@ def generate_dashboard() -> Layout:
     # Operation Mode
     mode_str = "AUTO" if state.input_mode == "auto" else "MANUAL"
     table.add_row("System Mode", f"[bold yellow]{mode_str}[/]", f"Input: {state.input_mode}")
+
+    # Soft Limits
+    def _fmt(v):
+        return f"{v:.1f}" if v is not None else "--"
+    m1_min = getattr(state, 'soft_limit_m1_min', None)
+    m1_max = getattr(state, 'soft_limit_m1_max', None)
+    m2_min = getattr(state, 'soft_limit_m2_min', None)
+    m2_max = getattr(state, 'soft_limit_m2_max', None)
+    any_limit = any(v is not None for v in [m1_min, m1_max, m2_min, m2_max])
+    limit_status = "[bold green]ON[/]" if any_limit else "[dim]OFF[/]"
+    limit_detail = (
+        f"M1(Pan): {_fmt(m1_min)} ~ {_fmt(m1_max)} °  │  "
+        f"M2(Tilt): {_fmt(m2_min)} ~ {_fmt(m2_max)} °  │  "
+        f"Now → M1:{state.esp32_pos_m1_deg:.1f} M2:{state.esp32_pos_m2_deg:.1f}"
+    )
+    table.add_row("Limits", limit_status, limit_detail)
 
     layout["header"].update(Panel(table, title="[bold blue]AI Vision Tracker - Live Dashboard[/]", border_style="blue"))
     
