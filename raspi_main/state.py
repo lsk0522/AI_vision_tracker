@@ -80,3 +80,11 @@ arduino_pos_m1        = 0
 arduino_pos_m2        = 0
 
 pause_reconnect       = False   # 펌웨어 업로드 중 재연결 방지 플래그
+
+# ── 소프트웨어 리밋 (사용자가 직접 끝 위치를 등록) ──────────
+# None = 해당 방향 리밋 없음 (무제한)
+# 값이 있으면 esp32_pos_m?_deg 기준으로 제한
+soft_limit_m1_min = None   # M1 수평 좌측 한계
+soft_limit_m1_max = None   # M1 수평 우측 한계
+soft_limit_m2_min = None   # M2 수직 하단 한계
+soft_limit_m2_max = None   # M2 수직 상단 한계

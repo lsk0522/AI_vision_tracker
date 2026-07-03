@@ -122,27 +122,26 @@ def joystick_dir():
             esp.stop_motors()
         else:
             # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
-            # ESP32는 모터 회전 각도를 보고하므로, 기어비(1:5)를 반영하여 실제 물리 각도를 구합니다.
-            # ESP32는 이미 44.44 steps/deg를 사용하므로 자체적으로 물리 각도와 일치할 가능성이 높습니다.
-            m1_phys = state.esp32_pos_m1_deg
-            m2_phys = state.esp32_pos_m2_deg
-            
-            print(f"[DEBUG SoftLimit] y={y:.3f} x={x:.3f} | M1={m1_phys:.2f}, M2={m2_phys:.2f}")
-            
-            # 1. M2 (수직) 절대 한계: -45(하단) ~ +45(상단)
-            # y < 0 (조이스틱 위로) -> M2 증가(상승).
-            if y < 0 and m2_phys >= 45.0: y = 0.0
-            # y > 0 (조이스틱 아래로) -> M2 감소(하강).
-            if y > 0 and m2_phys <= -45.0: y = 0.0
-            
-            # 2. M1 (수평) 한계: M2가 -45 ~ -25 구간일 때는 -85 ~ +85, 그 외엔 -180 ~ +180
-            m1_limit = 85.0 if (-45.0 <= m2_phys <= -25.0) else 180.0
-            if x > 0 and m1_phys >= m1_limit: x = 0.0
-            if x < 0 and m1_phys <= -m1_limit: x = 0.0
-            
-            # 3. 하강 방지: M1이 85도를 넘은 상태에서 M2가 -25도 밑으로 내려가는 것을 차단
-            if y > 0 and m2_phys <= -22.0 and abs(m1_phys) > 85.0:
+            m1 = state.esp32_pos_m1_deg
+            m2 = state.esp32_pos_m2_deg
+
+            # M2 수직: 조이스틱 y 입력이 실제 상승/하강 중 어느 수직인지 연산 (invert 상태 반영)
+            # y > 0 → 조이스틱 아래로
+            # invert=True  일 때: y > 0 → m2 증가(상승), y < 0 → m2 감소(하강)
+            # invert=False 일 때: y > 0 → m2 감소(하강), y < 0 → m2 증가(상승)
+            is_going_up   = (y > 0) if state.motor_m2_invert else (y < 0)
+            is_going_down = (y < 0) if state.motor_m2_invert else (y > 0)
+
+            if state.soft_limit_m2_max is not None and m2 >= state.soft_limit_m2_max and is_going_up:
                 y = 0.0
+            if state.soft_limit_m2_min is not None and m2 <= state.soft_limit_m2_min and is_going_down:
+                y = 0.0
+
+            # M1 (수평): x > 0 우측, x < 0 좌측
+            if state.soft_limit_m1_max is not None and m1 >= state.soft_limit_m1_max and x > 0:
+                x = 0.0
+            if state.soft_limit_m1_min is not None and m1 <= state.soft_limit_m1_min and x < 0:
+                x = 0.0
             # ----------------------------------------------------
 
             if abs(x) < 0.001 and abs(y) < 0.001:
@@ -210,3 +209,53 @@ def available_ports():
         ports = []
     return jsonify(ports=ports, connected=state.motor_connected,
                    current_port=state.motor_port)
+
+
+@bp.route('/set_limit')
+def set_limit():
+    """사용자가 모터를 원하는 끝 위치로 직접 이동 후 호출 → 현재 ESP32 각도를 리밋으로 저장.
+    ?axis=m1|m2  ?end=min|max
+    """
+    axis = request.args.get('axis', '').lower()   # 'm1' or 'm2'
+    end  = request.args.get('end', '').lower()    # 'min' or 'max'
+
+    if axis == 'm2' and end == 'max':
+        state.soft_limit_m2_max = state.esp32_pos_m2_deg
+        return jsonify(ok=True, axis='m2', end='max', value=state.soft_limit_m2_max)
+    elif axis == 'm2' and end == 'min':
+        state.soft_limit_m2_min = state.esp32_pos_m2_deg
+        return jsonify(ok=True, axis='m2', end='min', value=state.soft_limit_m2_min)
+    elif axis == 'm1' and end == 'max':
+        state.soft_limit_m1_max = state.esp32_pos_m1_deg
+        return jsonify(ok=True, axis='m1', end='max', value=state.soft_limit_m1_max)
+    elif axis == 'm1' and end == 'min':
+        state.soft_limit_m1_min = state.esp32_pos_m1_deg
+        return jsonify(ok=True, axis='m1', end='min', value=state.soft_limit_m1_min)
+    return jsonify(ok=False, error='invalid axis/end'), 400
+
+
+@bp.route('/get_limits')
+def get_limits():
+    """현재 저장된 리밋 값을 전달 — UI 상태 미러링용."""
+    return jsonify(
+        m1_min=state.soft_limit_m1_min,
+        m1_max=state.soft_limit_m1_max,
+        m2_min=state.soft_limit_m2_min,
+        m2_max=state.soft_limit_m2_max,
+        m1_now=state.esp32_pos_m1_deg,
+        m2_now=state.esp32_pos_m2_deg,
+    )
+
+
+@bp.route('/clear_limit')
+def clear_limit():
+    """?axis=m1|m2|all  ?end=min|max|all — 선택한 리밋 해제."""
+    axis = request.args.get('axis', 'all').lower()
+    end  = request.args.get('end',  'all').lower()
+    if axis in ('m2', 'all'):
+        if end in ('max', 'all'): state.soft_limit_m2_max = None
+        if end in ('min', 'all'): state.soft_limit_m2_min = None
+    if axis in ('m1', 'all'):
+        if end in ('max', 'all'): state.soft_limit_m1_max = None
+        if end in ('min', 'all'): state.soft_limit_m1_min = None
+    return jsonify(ok=True)
