@@ -20,9 +20,8 @@ class CustomStdout:
         return False
 
 def setup_logger():
-    # 1. 표준 출력(sys.stdout) 가로채기
+    # 1. 표준 출력(sys.stdout) 가로채기 (오류 메시지인 stderr는 화면에 그대로 출력되도록 둠)
     sys.stdout = CustomStdout()
-    sys.stderr = CustomStdout()
     
     # 2. 내장 print() 함수 가로채기
     _original_print = builtins.print
