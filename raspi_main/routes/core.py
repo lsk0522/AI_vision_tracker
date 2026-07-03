@@ -122,23 +122,24 @@ def joystick_dir():
             esp.stop_motors()
         else:
             # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
-            m1_pos = state.esp32_pos_m1_deg
-            m2_pos = state.esp32_pos_m2_deg
+            # ESP32는 모터 회전 각도를 보고하므로, 기어비(1:5)를 반영하여 실제 물리 각도를 구합니다.
+            gear_ratio = 5.0
+            m1_phys = state.esp32_pos_m1_deg / gear_ratio
+            m2_phys = state.esp32_pos_m2_deg / gear_ratio
             
             # 1. M2 (수직) 절대 한계: -45(하단) ~ +45(상단)
-            # y < 0 (조이스틱 위로) -> M2 증가(상승). 따라서 45 이상이면 차단.
-            if y < 0 and m2_pos >= 45.0: y = 0.0
-            # y > 0 (조이스틱 아래로) -> M2 감소(하강). 따라서 -45 이하이면 차단.
-            if y > 0 and m2_pos <= -45.0: y = 0.0
+            # y < 0 (조이스틱 위로) -> M2 증가(상승).
+            if y < 0 and m2_phys >= 45.0: y = 0.0
+            # y > 0 (조이스틱 아래로) -> M2 감소(하강).
+            if y > 0 and m2_phys <= -45.0: y = 0.0
             
             # 2. M1 (수평) 한계: M2가 -45 ~ -25 구간일 때는 -85 ~ +85, 그 외엔 -180 ~ +180
-            m1_limit = 85.0 if (-45.0 <= m2_pos <= -25.0) else 180.0
-            if x > 0 and m1_pos >= m1_limit: x = 0.0
-            if x < 0 and m1_pos <= -m1_limit: x = 0.0
+            m1_limit = 85.0 if (-45.0 <= m2_phys <= -25.0) else 180.0
+            if x > 0 and m1_phys >= m1_limit: x = 0.0
+            if x < 0 and m1_phys <= -m1_limit: x = 0.0
             
             # 3. 하강 방지: M1이 85도를 넘은 상태에서 M2가 -25도 밑으로 내려가는 것을 차단
-            # y > 0 (하강) 이고 M2가 이미 -22 이하로 내려갔을 때 차단
-            if y > 0 and m2_pos <= -22.0 and abs(m1_pos) > 85.0:
+            if y > 0 and m2_phys <= -22.0 and abs(m1_phys) > 85.0:
                 y = 0.0
             # ----------------------------------------------------
 

@@ -242,26 +242,24 @@ def _run():
             tx, ty = state.point[0], state.point[1]
             
             # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
-            m1_pos = state.esp32_pos_m1_deg
-            m2_pos = state.esp32_pos_m2_deg
+            gear_ratio = 5.0
+            m1_phys = state.esp32_pos_m1_deg / gear_ratio
+            m2_phys = state.esp32_pos_m2_deg / gear_ratio
             
             # 화면 중앙(320, 240)을 전송하면 모터가 해당 축의 회전을 멈춤.
             # 1. M2 절대 한계: -45 ~ +45
-            # ty < 240 이면 위로(M2 증가) 회전함. M2가 45 이상이면 더 이상 위로 못 가게 차단.
-            if ty < 240 and m2_pos >= 45.0: ty = 240
-            # ty > 240 이면 아래로(M2 감소) 회전함. M2가 -45 이하이면 더 이상 아래로 못 가게 차단.
-            if ty > 240 and m2_pos <= -45.0: ty = 240
+            # ty < 240 이면 위로(M2 증가) 회전함. M2가 45 이상이면 차단.
+            if ty < 240 and m2_phys >= 45.0: ty = 240
+            # ty > 240 이면 아래로(M2 감소) 회전함. M2가 -45 이하이면 차단.
+            if ty > 240 and m2_phys <= -45.0: ty = 240
             
             # 2. M1 한계: M2가 -45 ~ -25 구간일 때는 -85 ~ +85, 그 외엔 -180 ~ +180
-            m1_limit = 85.0 if (-45.0 <= m2_pos <= -25.0) else 180.0
-            # tx > 320 이면 우측(M1 증가) 회전함.
-            if tx > 320 and m1_pos >= m1_limit: tx = 320
-            # tx < 320 이면 좌측(M1 감소) 회전함.
-            if tx < 320 and m1_pos <= -m1_limit: tx = 320
+            m1_limit = 85.0 if (-45.0 <= m2_phys <= -25.0) else 180.0
+            if tx > 320 and m1_phys >= m1_limit: tx = 320
+            if tx < 320 and m1_phys <= -m1_limit: tx = 320
             
             # 3. 하강 방지: M1이 85도를 넘은 상태에서 M2가 -25도 밑으로 내려가는 것을 차단
-            # 여유 마진을 둬서 -22도 이하로 내려가려 할 때 차단
-            if ty > 240 and m2_pos <= -22.0 and abs(m1_pos) > 85.0:
+            if ty > 240 and m2_phys <= -22.0 and abs(m1_phys) > 85.0:
                 ty = 240
             # ----------------------------------------------------
 
