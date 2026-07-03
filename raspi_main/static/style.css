@@ -408,7 +408,33 @@ body {
     stroke-width: 2.6;
 }
 
-#settings-content { padding: 8px 20px 26px; }
+#settings-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: 92dvh;
+    overflow: hidden;
+}
+
+#settings-content {
+    padding: 8px 20px 32px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    /* 스크롤바 숨기기 (WebKit) */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+
+#settings-content::-webkit-scrollbar {
+    width: 4px;
+}
+#settings-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+#settings-content::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.22);
+    border-radius: 2px;
+}
 
 .setting-item { margin-top: 20px; }
 
