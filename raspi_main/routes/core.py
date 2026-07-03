@@ -121,28 +121,32 @@ def joystick_dir():
             # 조이스틱에서 손을 뗌 → 즉시 정지
             esp.stop_motors()
         else:
-            # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
+            # --- 파이썬 소프트웨어 리밋 — 이전위치 비교 기반 방향감지 (방향 세팅 무관) ---
             m1 = state.esp32_pos_m1_deg
             m2 = state.esp32_pos_m2_deg
 
-            # M2 수직: 조이스틱 y 입력이 실제 상승/하강 중 어느 수직인지 연산 (invert 상태 반영)
-            # y > 0 → 조이스틱 아래로
-            # invert=True  일 때: y > 0 → m2 증가(상승), y < 0 → m2 감소(하강)
-            # invert=False 일 때: y > 0 → m2 감소(하강), y < 0 → m2 증가(상승)
-            is_going_up   = (y > 0) if state.motor_m2_invert else (y < 0)
-            is_going_down = (y < 0) if state.motor_m2_invert else (y > 0)
+            # ESP32는 이미 물리 각도 단위 보고 (steps_per_deg=44.44 기어비 포함)
+            # 이전 샘플와 현재 샘플의 자연스러운 차이로 화스어떡 모드불풍
+            m1_moving_pos = m1 > state._prev_m1_pos + 0.05   # M1이 양수 방향으로 이동 중
+            m1_moving_neg = m1 < state._prev_m1_pos - 0.05   # M1이 음수 방향으로 이동 중
+            m2_moving_pos = m2 > state._prev_m2_pos + 0.05
+            m2_moving_neg = m2 < state._prev_m2_pos - 0.05
 
-            if state.soft_limit_m2_max is not None and m2 >= state.soft_limit_m2_max and is_going_up:
+            state._prev_m1_pos = m1
+            state._prev_m2_pos = m2
+
+            # M2 (수직) 상단→하단 리밋
+            if state.soft_limit_m2_max is not None and m2 >= state.soft_limit_m2_max and m2_moving_pos:
                 y = 0.0
-            if state.soft_limit_m2_min is not None and m2 <= state.soft_limit_m2_min and is_going_down:
+            if state.soft_limit_m2_min is not None and m2 <= state.soft_limit_m2_min and m2_moving_neg:
                 y = 0.0
 
-            # M1 (수평): x > 0 우측, x < 0 좌측
-            if state.soft_limit_m1_max is not None and m1 >= state.soft_limit_m1_max and x > 0:
+            # M1 (수평) 좌측→우측 리밋
+            if state.soft_limit_m1_max is not None and m1 >= state.soft_limit_m1_max and m1_moving_pos:
                 x = 0.0
-            if state.soft_limit_m1_min is not None and m1 <= state.soft_limit_m1_min and x < 0:
+            if state.soft_limit_m1_min is not None and m1 <= state.soft_limit_m1_min and m1_moving_neg:
                 x = 0.0
-            # ----------------------------------------------------
+            # -----------------------------------------------------------------
 
             if abs(x) < 0.001 and abs(y) < 0.001:
                 esp.stop_motors()

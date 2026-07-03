@@ -81,10 +81,15 @@ arduino_pos_m2        = 0
 
 pause_reconnect       = False   # 펌웨어 업로드 중 재연결 방지 플래그
 
-# ── 소프트웨어 리밋 (사용자가 직접 끝 위치를 등록) ──────────
-# None = 해당 방향 리밋 없음 (무제한)
-# 값이 있으면 esp32_pos_m?_deg 기준으로 제한
-soft_limit_m1_min = None   # M1 수평 좌측 한계
-soft_limit_m1_max = None   # M1 수평 우측 한계
-soft_limit_m2_min = None   # M2 수직 하단 한계
-soft_limit_m2_max = None   # M2 수직 상단 한계
+# ── 소프트웨어 리밋 ─────────────────────────────────────────
+# esp32_steps_per_deg = 44.44 = 200step * 16microstep * 5(기어비) / 360
+# → ESP32 각도값은 이미 실제 물리 각도(도)입니다. 업다운 계산 불필요.
+# None = 해당 방향 리밋 없음, 토 = 사용자 스스로 UI에서 재정의 가능
+soft_limit_m1_min = -180.0   # M1 수평 좌측 한계 (물리각도)
+soft_limit_m1_max =  180.0   # M1 수평 우측 한계
+soft_limit_m2_min =  -45.0   # M2 수직 하단 한계
+soft_limit_m2_max =   45.0   # M2 수직 상단 한계
+
+# 방향 감지용 이전 위치 (코드가 자동 갱신 — 수정 불필요)
+_prev_m1_pos = 0.0
+_prev_m2_pos = 0.0
