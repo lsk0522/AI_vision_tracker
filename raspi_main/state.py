@@ -118,3 +118,6 @@ soft_limit_m2_max = _M2_ESP32_AT_DOWN    # = +4.5  (아래 한계: ESP32 값은 
 # 방향 감지용 이전 위치 (코드가 자동 갱신 -- 수정 불필요)
 _prev_m1_pos = 0.0
 _prev_m2_pos = 0.0
+
+# 터미널 표시용 리밋 경고 메시지
+active_limit_msg = ""

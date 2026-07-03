@@ -79,16 +79,23 @@ def generate_dashboard() -> Layout:
     m2_min = getattr(state, 'soft_limit_m2_min', None)
     m2_max = getattr(state, 'soft_limit_m2_max', None)
     any_limit = any(v is not None for v in [m1_min, m1_max, m2_min, m2_max])
-    limit_status = "[bold green]ON[/]" if any_limit else "[dim]OFF[/]"
+    
+    # 조이스틱 입력이 리밋에 막혔을 때 뜨는 경고 메시지
+    warning = getattr(state, 'active_limit_msg', "")
+    limit_status = f"[bold red]BLOCKED[/]" if warning else ("[bold green]ON[/]" if any_limit else "[dim]OFF[/]")
     
     m1_now = state.get_m1_phys()
     m2_now = state.get_m2_phys()
     
-    limit_detail = (
-        f"M1(Pan): {_to_phys_m1(m1_min)} ~ {_to_phys_m1(m1_max)} deg  |  "
-        f"M2(Tilt): {_to_phys_m2(m2_min)} ~ {_to_phys_m2(m2_max)} deg  |  "
-        f"Now M1:{m1_now:.1f} M2:{m2_now:.1f} deg"
-    )
+    # 경고가 있으면 Detail 쪽에 경고를 띄워줌
+    if warning:
+        limit_detail = f"[bold red]⚠️ {warning}[/bold red]  (Now M1:{m1_now:.1f} M2:{m2_now:.1f} deg)"
+    else:
+        limit_detail = (
+            f"M1(Pan): {_to_phys_m1(m1_min)} ~ {_to_phys_m1(m1_max)} deg  |  "
+            f"M2(Tilt): {_to_phys_m2(m2_min)} ~ {_to_phys_m2(m2_max)} deg  |  "
+            f"Now M1:{m1_now:.1f} M2:{m2_now:.1f} deg"
+        )
     table.add_row("Limits", limit_status, limit_detail)
 
     layout["header"].update(Panel(table, title="[bold blue]AI Vision Tracker - Live Dashboard[/]", border_style="blue"))

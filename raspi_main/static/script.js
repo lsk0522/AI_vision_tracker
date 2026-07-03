@@ -2690,3 +2690,27 @@ window.setInputModeUI = function(mode) {
 
 // 실행 시 퀵 버튼 초기 상태 동기화
 _updateQuickAiBtn(inputMode || 'joystick');
+
+// ── Fullscreen Toggle ──────────────────────────────────────────────────
+const fullscreenBtn = document.getElementById("fullscreen-btn");
+if (fullscreenBtn) {
+    fullscreenBtn.addEventListener("click", () => {
+        if (!document.fullscreenElement) {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) { // Safari
+                document.documentElement.webkitRequestFullscreen();
+            } else if (document.documentElement.msRequestFullscreen) { // IE11
+                document.documentElement.msRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { // Safari
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { // IE11
+                document.msExitFullscreen();
+            }
+        }
+    });
+}

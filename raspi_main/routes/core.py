@@ -128,29 +128,41 @@ def joystick_dir():
             m1_p = state.get_m1_phys()
             m2_p = state.get_m2_phys()
 
-            # M2 (수직) 리밋 검사
+            # 관성 오버슛(밀림) 방지용 마진 설정
+            margin_m1 = 3.0
+            margin_m2 = 2.5
+
             block_y_pos = False  # 조이스틱 아래로(y>0) 차단
             block_y_neg = False  # 조이스틱 위로(y<0) 차단
+            limit_reason = ""
 
             if y > 0:
                 # 밑으로 내려갈 때, M1이 좌우 80도를 넘어갔다면 -25도까지만 허용
                 if m1_p > 80.0 or m1_p < -80.0:
-                    if m2_p <= -25.0:
+                    if m2_p <= -25.0 + margin_m2:
                         block_y_pos = True
+                        limit_reason = "[M2 DOWN] 2D Safe Zone (-25°)"
                 else:
-                    if m2_p <= -40.0:
+                    if m2_p <= -40.0 + margin_m2:
                         block_y_pos = True
+                        limit_reason = "[M2 DOWN] Hardware Limit (-40°)"
             
             if y < 0:
                 # 위로는 +50도까지만
-                if m2_p >= 50.0:
+                if m2_p >= 50.0 - margin_m2:
                     block_y_neg = True
+                    limit_reason = "[M2 UP] Hardware Limit (+50°)"
 
-            # 사용자 설정 M2 리밋 추가 적용
-            if state.soft_limit_m2_max is not None and m2_e >= state.soft_limit_m2_max:
-                block_y_pos = True
-            if state.soft_limit_m2_min is not None and m2_e <= state.soft_limit_m2_min:
-                block_y_neg = True
+            # 사용자 설정 M2 리밋 추가 적용 (ESP32 값 기준이므로 마진은 부호 방향 주의)
+            # ESP32: y>0 일때 max쪽으로 감
+            if state.soft_limit_m2_max is not None and m2_e >= state.soft_limit_m2_max - (margin_m2*0.1):
+                if y > 0:
+                    block_y_pos = True
+                    limit_reason = "[M2 DOWN] User Soft Limit"
+            if state.soft_limit_m2_min is not None and m2_e <= state.soft_limit_m2_min + (margin_m2*0.1):
+                if y < 0:
+                    block_y_neg = True
+                    limit_reason = "[M2 UP] User Soft Limit"
 
             if y > 0 and block_y_pos: y = 0.0
             if y < 0 and block_y_neg: y = 0.0
@@ -161,24 +173,39 @@ def joystick_dir():
 
             if x > 0:
                 if m2_p < -25.0:
-                    if m1_p >= 80.0: block_x_pos = True
+                    if m1_p >= 80.0 - margin_m1: 
+                        block_x_pos = True
+                        limit_reason = "[M1 RIGHT] 2D Safe Zone (+80°)"
                 else:
-                    if m1_p >= 180.0: block_x_pos = True
+                    if m1_p >= 180.0 - margin_m1: 
+                        block_x_pos = True
+                        limit_reason = "[M1 RIGHT] Hardware Limit (+180°)"
             
             if x < 0:
                 if m2_p < -25.0:
-                    if m1_p <= -80.0: block_x_neg = True
+                    if m1_p <= -80.0 + margin_m1: 
+                        block_x_neg = True
+                        limit_reason = "[M1 LEFT] 2D Safe Zone (-80°)"
                 else:
-                    if m1_p <= -180.0: block_x_neg = True
+                    if m1_p <= -180.0 + margin_m1: 
+                        block_x_neg = True
+                        limit_reason = "[M1 LEFT] Hardware Limit (-180°)"
 
             # 사용자 설정 M1 리밋 추가 적용
-            if state.soft_limit_m1_max is not None and m1_e >= state.soft_limit_m1_max:
-                block_x_pos = True
-            if state.soft_limit_m1_min is not None and m1_e <= state.soft_limit_m1_min:
-                block_x_neg = True
+            if state.soft_limit_m1_max is not None and m1_e >= state.soft_limit_m1_max - (margin_m1*0.126):
+                if x > 0:
+                    block_x_pos = True
+                    limit_reason = "[M1 RIGHT] User Soft Limit"
+            if state.soft_limit_m1_min is not None and m1_e <= state.soft_limit_m1_min + (margin_m1*0.126):
+                if x < 0:
+                    block_x_neg = True
+                    limit_reason = "[M1 LEFT] User Soft Limit"
 
             if x > 0 and block_x_pos: x = 0.0
             if x < 0 and block_x_neg: x = 0.0
+
+            # TUI 출력용 상태 저장
+            state.active_limit_msg = limit_reason
             # -----------------------------------------------------------------
 
             if abs(x) < 0.001 and abs(y) < 0.001:
