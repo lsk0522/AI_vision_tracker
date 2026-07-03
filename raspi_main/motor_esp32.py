@@ -137,16 +137,20 @@ def _send(cmd: str):
 
 def _parse_status(line: str):
     """POS: / VER: 피드백 파싱."""
-    # ── 펌웨어 버전 수신 ──────────────────────────────────────────
+    # ── 버전 확인 ──────────────────────────────────────────
     if line.startswith("VER:"):
         actual = line[4:].strip()
         state.firmware_version_actual = actual
         state.firmware_mismatch = (actual != state.EXPECTED_FIRMWARE_VERSION)
         if state.firmware_mismatch:
-            print(f"[esp32] ⚠️ 펌웨어 버전 불일치! "
-                  f"연결됨={actual!r}, 기대={state.EXPECTED_FIRMWARE_VERSION!r}")
+            err_msg = (f"\n[esp32] ⚠️ 펌웨어 버전 불일치 치명적 오류!\n"
+                       f"연결됨='{actual}', 기대='{state.EXPECTED_FIRMWARE_VERSION}'\n"
+                       f"펌웨어를 업데이트하거나 코드를 수정하세요. 프로그램을 강제 종료합니다.\n")
+            print(err_msg)
+            import os
+            os._exit(1)
         else:
-            print(f"[esp32] ✅ 펌웨어 버저 확인: {actual}")
+            print(f"[esp32] ✅ 펌웨어 버전 확인: {actual}")
         return
 
     # ── 위치 피드백 ──────────────────────────────────────────
@@ -233,20 +237,20 @@ def _run():
 
         now = time.time()
 
-        # track 모드: T:x:y 전송 (좌표 변경 시 즉시 + 50ms heartbeat)
+        # track 모드: T:x:y 전송 (좌표 변경 시 즉시 + 30ms heartbeat)
         if state.esp32_control_mode == "track":
             x, y = state.point[0], state.point[1]
-            if abs(x - last_x) >= 1 or abs(y - last_y) >= 1 or (now - last_t_time > 0.05):
+            if abs(x - last_x) >= 1 or abs(y - last_y) >= 1 or (now - last_t_time > 0.03):
                 _send(f"T:{x}:{y}\n")
                 last_x, last_y = x, y
                 last_t_time = now
 
-        # POS 주기 요청 (100ms)
-        if now - last_pos_req > 0.1:
+        # POS 주기 요청 (60ms)
+        if now - last_pos_req > 0.06:
             _send("POS\n")
             last_pos_req = now
 
-        time.sleep(0.005)
+        time.sleep(0.002)
 
 
 def send_config(key: str, value):

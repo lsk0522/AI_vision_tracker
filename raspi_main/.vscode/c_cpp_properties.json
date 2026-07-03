@@ -1,0 +1,34 @@
+{
+    "configurations": [
+        {
+            "name": "ESP32-Arduino",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.10/cores/esp32",
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.10/variants/doitESP32devkitV1",
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.10/libraries/**",
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2601/xtensa-esp-elf/include",
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2601/lib/gcc/xtensa-esp-elf/14.2.0/include",
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2601/picolibc/xtensa-esp-elf/include",
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.10/include"
+            ],
+            "forcedInclude": [
+                "C:/Users/LSK0522/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.10/cores/esp32/Arduino.h"
+            ],
+            "defines": [
+                "ARDUINO=10819",
+                "ARDUINO_ESP32_DEV",
+                "ARDUINO_ARCH_ESP32",
+                "ESP32",
+                "F_CPU=240000000L",
+                "CORE_DEBUG_LEVEL=0",
+                "__XTENSA__",
+                "__XTENSA_SOFT_FLOAT__"
+            ],
+            "intelliSenseMode": "gcc-x64",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17"
+        }
+    ],
+    "version": 4
+}
