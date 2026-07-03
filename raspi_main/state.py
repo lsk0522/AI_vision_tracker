@@ -82,23 +82,25 @@ arduino_pos_m2        = 0
 pause_reconnect       = False   # 펌웨어 업로드 중 재연결 방지 플래그
 
 # -- 소프트웨어 리밋 ---------------------------------------------------------
-# 실측 M1: 물리 180도 = ESP32 22.7  → 배율 0.1261
-# 실측 M2: 위(물리 +45도) = ESP32 -6.5  /  아래(물리 -45도) = ESP32 +4.5  (반전 확인)
+# M1 실측: 물리 180도 = ESP32 22.7  → 배율 0.1261
+# M2 실측: 위(물리 +50도) = ESP32 -6.5  /  아래(물리 -45도) = ESP32 +4.5  (반전)
 
-_M1_PHYS_TO_ESP32 = 22.7 / 180.0    # M1 물리 각도 -> ESP32 단위 배율
+_M1_PHYS_TO_ESP32 = 22.7 / 180.0    # M1: 물리 1도 = ESP32 0.1261
 
 # M2 실측 끝점 (ESP32 단위)
-_M2_ESP32_AT_UP   = -6.5    # 물리 +45도 위치에서 ESP32가 보고하는 값
-_M2_ESP32_AT_DOWN =  4.5    # 물리 -45도 위치에서 ESP32가 보고하는 값
+_M2_ESP32_AT_UP    = -6.5    # 물리 +50도(위) 위치
+_M2_PHYS_AT_UP     = 50.0    # 위 물리 각도
+_M2_ESP32_AT_DOWN  =  4.5    # 물리 -45도(아래) 위치
+_M2_PHYS_AT_DOWN   = 45.0    # 아래 물리 각도
 
-# M2 TUI 표시용 간이 변환 (실측 평균 배율)
-_M2_PHYS_TO_ESP32 = (abs(_M2_ESP32_AT_UP) + abs(_M2_ESP32_AT_DOWN)) / 90.0  # (6.5+4.5)/90 = 0.1222
+# M2 TUI 표시용 간이 평균 배율 ((6.5+4.5)/(50+45))
+_M2_PHYS_TO_ESP32 = (abs(_M2_ESP32_AT_UP) + abs(_M2_ESP32_AT_DOWN)) / (_M2_PHYS_AT_UP + _M2_PHYS_AT_DOWN)
 
-# 리밋 값 (ESP32 단위 기준, None = 리밋 없음)
-soft_limit_m1_min = -22.7   # M1 좌측 한계  (물리 -180도)
-soft_limit_m1_max =  22.7   # M1 우측 한계  (물리 +180도)
-soft_limit_m2_min = _M2_ESP32_AT_UP    # = -6.5  (물리 +45도가 ESP32 단위로 더 작은 값)
-soft_limit_m2_max = _M2_ESP32_AT_DOWN  # = +4.5  (물리 -45도가 ESP32 단위로 더 큰 값)
+# 리밋 값 (ESP32 단위, None = 리밋 없음)
+soft_limit_m1_min = -22.7                # M1 좌측 한계  (물리 -180도)
+soft_limit_m1_max =  22.7                # M1 우측 한계  (물리 +180도)
+soft_limit_m2_min = _M2_ESP32_AT_UP      # = -6.5  (위 한계: ESP32 값은 음수가 더 작은 시점)
+soft_limit_m2_max = _M2_ESP32_AT_DOWN    # = +4.5  (아래 한계: ESP32 값은 양수가 더 큰 시점)
 
 # 방향 감지용 이전 위치 (코드가 자동 갱신 -- 수정 불필요)
 _prev_m1_pos = 0.0

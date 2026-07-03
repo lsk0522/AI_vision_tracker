@@ -63,9 +63,28 @@ def generate_dashboard() -> Layout:
         sc = getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
         return f"{v / sc:.1f}"
     def _to_phys_m2(v):
+        """M2 리밋 끝점을 물리 각도로 표시 (실측 변환 사용)"""
         if v is None: return "--"
-        sc = getattr(state, '_M2_PHYS_TO_ESP32', 0.1222)
-        return f"{v / sc:.1f}"
+        up_e = getattr(state, '_M2_ESP32_AT_UP',   -6.5)
+        up_p = getattr(state, '_M2_PHYS_AT_UP',    50.0)
+        dn_e = getattr(state, '_M2_ESP32_AT_DOWN',  4.5)
+        dn_p = getattr(state, '_M2_PHYS_AT_DOWN',  45.0)
+        # 리밋은 끝점이므로 면저 물리 각도로 표시
+        if v <= 0:   # 위 그룹 (ESP32 음수)
+            return f"+{up_p:.0f}"
+        else:         # 아래 그룹 (ESP32 양수)
+            return f"-{dn_p:.0f}"
+    def _m2_now_phys(esp_val):
+        """M2 현재 ESP32값 -> 물리 각도"""
+        up_e = getattr(state, '_M2_ESP32_AT_UP',   -6.5)
+        up_p = getattr(state, '_M2_PHYS_AT_UP',    50.0)
+        dn_e = getattr(state, '_M2_ESP32_AT_DOWN',  4.5)
+        dn_p = getattr(state, '_M2_PHYS_AT_DOWN',  45.0)
+        if esp_val < 0:
+            return -esp_val * (up_p / abs(up_e))   # 욕: 양수로 표시
+        elif esp_val > 0:
+            return -esp_val * (dn_p / abs(dn_e))   # 내림: 음수로 표시
+        return 0.0
     m1_min = getattr(state, 'soft_limit_m1_min', None)
     m1_max = getattr(state, 'soft_limit_m1_max', None)
     m2_min = getattr(state, 'soft_limit_m2_min', None)
@@ -73,9 +92,8 @@ def generate_dashboard() -> Layout:
     any_limit = any(v is not None for v in [m1_min, m1_max, m2_min, m2_max])
     limit_status = "[bold green]ON[/]" if any_limit else "[dim]OFF[/]"
     sc_m1 = getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
-    sc_m2 = getattr(state, '_M2_PHYS_TO_ESP32', 0.1222)
     m1_now = state.esp32_pos_m1_deg / sc_m1
-    m2_now = state.esp32_pos_m2_deg / sc_m2
+    m2_now = _m2_now_phys(state.esp32_pos_m2_deg)
     limit_detail = (
         f"M1(Pan): {_to_phys_m1(m1_min)} ~ {_to_phys_m1(m1_max)} deg  |  "
         f"M2(Tilt): {_to_phys_m2(m2_min)} ~ {_to_phys_m2(m2_max)} deg  |  "
