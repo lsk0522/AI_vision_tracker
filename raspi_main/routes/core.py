@@ -121,90 +121,89 @@ def joystick_dir():
             # 조이스틱에서 손을 뗌 → 즉시 정지
             esp.stop_motors()
         else:
-            # --- 파이썬 소프트웨어 리밋 (다이나믹 2D 안전 영역 포함) ---
+            # --- 파이썬 소프트웨어 리밋 (다이나믹 2D 안전 영역 + 자동 감속) ---
             m1_e = state.esp32_pos_m1_deg
             m2_e = state.esp32_pos_m2_deg
             
             m1_p = state.get_m1_phys()
             m2_p = state.get_m2_phys()
 
-            # 관성 오버슛(밀림) 방지용 마진 설정
-            margin_m1 = 3.0
-            margin_m2 = 2.5
-
-            block_y_pos = False  # 조이스틱 아래로(y>0) 차단
-            block_y_neg = False  # 조이스틱 위로(y<0) 차단
+            block_y_pos = False; block_y_neg = False
+            block_x_pos = False; block_x_neg = False
             limit_reason = ""
 
-            if y > 0:
-                # 밑으로 내려갈 때, M1이 좌우 80도를 넘어갔다면 -25도까지만 허용
-                if m1_p > 80.0 or m1_p < -80.0:
-                    if m2_p <= -25.0 + margin_m2:
-                        block_y_pos = True
-                        limit_reason = "[M2 DOWN] 2D Safe Zone (-25°)"
-                else:
-                    if m2_p <= -40.0 + margin_m2:
-                        block_y_pos = True
-                        limit_reason = "[M2 DOWN] Hardware Limit (-40°)"
+            # 1. 2D 다이나믹 하드웨어 한계 계산 (물리 각도)
+            hw_m2_max = 50.0
+            hw_m2_min = -25.0 if (m1_p > 80.0 or m1_p < -80.0) else -40.0
             
-            if y < 0:
-                # 위로는 +50도까지만
-                if m2_p >= 50.0 - margin_m2:
-                    block_y_neg = True
-                    limit_reason = "[M2 UP] Hardware Limit (+50°)"
+            hw_m1_max = 80.0 if (m2_p < -25.0) else 180.0
+            hw_m1_min = -80.0 if (m2_p < -25.0) else -180.0
 
-            # 사용자 설정 M2 리밋 추가 적용 (ESP32 값 기준이므로 마진은 부호 방향 주의)
-            # ESP32: y>0 일때 max쪽으로 감
-            if state.soft_limit_m2_max is not None and m2_e >= state.soft_limit_m2_max - (margin_m2*0.1):
-                if y > 0:
-                    block_y_pos = True
-                    limit_reason = "[M2 DOWN] User Soft Limit"
-            if state.soft_limit_m2_min is not None and m2_e <= state.soft_limit_m2_min + (margin_m2*0.1):
-                if y < 0:
-                    block_y_neg = True
-                    limit_reason = "[M2 UP] User Soft Limit"
+            # 2. 사용자 설정 리밋을 물리 각도로 변환하여 하드웨어 한계와 병합 (더 타이트한 값 적용)
+            eff_m1_max = hw_m1_max
+            eff_m1_min = hw_m1_min
+            if state.soft_limit_m1_max is not None:
+                usr_m1_max = state.soft_limit_m1_max / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
+                eff_m1_max = min(eff_m1_max, usr_m1_max)
+            if state.soft_limit_m1_min is not None:
+                usr_m1_min = state.soft_limit_m1_min / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
+                eff_m1_min = max(eff_m1_min, usr_m1_min)
 
-            if y > 0 and block_y_pos: y = 0.0
-            if y < 0 and block_y_neg: y = 0.0
+            eff_m2_max = hw_m2_max
+            eff_m2_min = hw_m2_min
+            # M2 ESP32값과 물리각도는 부호가 반대일 수 있으므로(위가 -ESP32, 아래가 +ESP32) 주의
+            # 사용자가 설정한 soft_limit_m2_min (ESP32 -6.5, 물리 50) -> 위쪽(max)
+            # 사용자가 설정한 soft_limit_m2_max (ESP32 +4.0, 물리 -40) -> 아래쪽(min)
+            if state.soft_limit_m2_min is not None:
+                # ESP32 음수 -> 물리 양수 (UP)
+                up_p = getattr(state, '_M2_PHYS_AT_UP', 50.0)
+                up_e = abs(getattr(state, '_M2_ESP32_AT_UP', -6.5))
+                usr_m2_max = -(state.soft_limit_m2_min) * (up_p / up_e) if state.soft_limit_m2_min < 0 else 0
+                eff_m2_max = min(eff_m2_max, usr_m2_max)
+            if state.soft_limit_m2_max is not None:
+                # ESP32 양수 -> 물리 음수 (DOWN)
+                dn_p = getattr(state, '_M2_PHYS_AT_DOWN', 40.0)
+                dn_e = abs(getattr(state, '_M2_ESP32_AT_DOWN', 4.0))
+                usr_m2_min = -(state.soft_limit_m2_max) * (dn_p / dn_e) if state.soft_limit_m2_max > 0 else 0
+                eff_m2_min = max(eff_m2_min, usr_m2_min)
 
-            # M1 (수평) 리밋 검사
-            block_x_pos = False  # 조이스틱 우측(x>0) 차단
-            block_x_neg = False  # 조이스틱 좌측(x<0) 차단
+            # 3. 브레이킹 거리 설정 (이 거리 안으로 들어가면 속도가 점점 줄어듦)
+            brake_dist_m1 = 20.0
+            brake_dist_m2 = 15.0
+            max_speed = 5.0  # 조이스틱 최대 입력값 추정치
 
-            if x > 0:
-                if m2_p < -25.0:
-                    if m1_p >= 80.0 - margin_m1: 
-                        block_x_pos = True
-                        limit_reason = "[M1 RIGHT] 2D Safe Zone (+80°)"
-                else:
-                    if m1_p >= 180.0 - margin_m1: 
-                        block_x_pos = True
-                        limit_reason = "[M1 RIGHT] Hardware Limit (+180°)"
-            
-            if x < 0:
-                if m2_p < -25.0:
-                    if m1_p <= -80.0 + margin_m1: 
-                        block_x_neg = True
-                        limit_reason = "[M1 LEFT] 2D Safe Zone (-80°)"
-                else:
-                    if m1_p <= -180.0 + margin_m1: 
-                        block_x_neg = True
-                        limit_reason = "[M1 LEFT] Hardware Limit (-180°)"
+            # M2 (수직) 자동 감속 및 차단
+            if y > 0: # 아래로 이동 중 (min 방향)
+                dist = m2_p - eff_m2_min
+                if dist <= 0:
+                    y = 0.0; block_y_pos = True
+                    limit_reason = f"[M2 DOWN] Limit Reached ({eff_m2_min:.0f}°)"
+                elif dist < brake_dist_m2:
+                    y = min(y, (dist / brake_dist_m2) * max_speed)
+            elif y < 0: # 위로 이동 중 (max 방향)
+                dist = eff_m2_max - m2_p
+                if dist <= 0:
+                    y = 0.0; block_y_neg = True
+                    limit_reason = f"[M2 UP] Limit Reached ({eff_m2_max:.0f}°)"
+                elif dist < brake_dist_m2:
+                    y = max(y, -(dist / brake_dist_m2) * max_speed)
 
-            # 사용자 설정 M1 리밋 추가 적용
-            if state.soft_limit_m1_max is not None and m1_e >= state.soft_limit_m1_max - (margin_m1*0.126):
-                if x > 0:
-                    block_x_pos = True
-                    limit_reason = "[M1 RIGHT] User Soft Limit"
-            if state.soft_limit_m1_min is not None and m1_e <= state.soft_limit_m1_min + (margin_m1*0.126):
-                if x < 0:
-                    block_x_neg = True
-                    limit_reason = "[M1 LEFT] User Soft Limit"
+            # M1 (수평) 자동 감속 및 차단
+            if x > 0: # 우측으로 이동 중 (max 방향)
+                dist = eff_m1_max - m1_p
+                if dist <= 0:
+                    x = 0.0; block_x_pos = True
+                    limit_reason = f"[M1 RIGHT] Limit Reached ({eff_m1_max:.0f}°)"
+                elif dist < brake_dist_m1:
+                    x = min(x, (dist / brake_dist_m1) * max_speed)
+            elif x < 0: # 좌측으로 이동 중 (min 방향)
+                dist = m1_p - eff_m1_min
+                if dist <= 0:
+                    x = 0.0; block_x_neg = True
+                    limit_reason = f"[M1 LEFT] Limit Reached ({eff_m1_min:.0f}°)"
+                elif dist < brake_dist_m1:
+                    x = max(x, -(dist / brake_dist_m1) * max_speed)
 
-            if x > 0 and block_x_pos: x = 0.0
-            if x < 0 and block_x_neg: x = 0.0
-
-            # TUI 출력용 상태 저장
             state.active_limit_msg = limit_reason
             # -----------------------------------------------------------------
 
