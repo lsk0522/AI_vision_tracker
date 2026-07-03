@@ -10,7 +10,22 @@ import state
 import sys
 
 # ── Camera configuration state ─────────────────────────────────────
-_camera_index  = 0
+def _auto_find_camera():
+    """실제로 프레임이 읽히는 진짜 카메라 인덱스를 찾아냅니다. (라즈베리파이 더미 방지)"""
+    for i in range(10):
+        if sys.platform.startswith('win'):
+            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+        else:
+            cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
+            
+        if cap.isOpened():
+            ok, frame = cap.read()
+            cap.release()
+            if ok and frame is not None:
+                return i
+    return 0
+
+_camera_index  = _auto_find_camera()
 _cap           = None
 _cap_lock      = threading.Lock()
 
