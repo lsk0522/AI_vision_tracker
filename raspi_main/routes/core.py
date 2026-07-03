@@ -121,25 +121,64 @@ def joystick_dir():
             # 조이스틱에서 손을 뗌 → 즉시 정지
             esp.stop_motors()
         else:
-            # --- 파이썬 소프트웨어 리밋 ---
-            m1 = state.esp32_pos_m1_deg
-            m2 = state.esp32_pos_m2_deg
+            # --- 파이썬 소프트웨어 리밋 (다이나믹 2D 안전 영역 포함) ---
+            m1_e = state.esp32_pos_m1_deg
+            m2_e = state.esp32_pos_m2_deg
+            
+            m1_p = state.get_m1_phys()
+            m2_p = state.get_m2_phys()
 
             # M2 (수직) 리밋 검사
-            # y > 0 (조이스틱 아래) → ESP32 값 증가(max 방향)
-            # y < 0 (조이스틱 위)   → ESP32 값 감소(min 방향)
-            if state.soft_limit_m2_max is not None and m2 >= state.soft_limit_m2_max and y > 0:
-                y = 0.0
-            if state.soft_limit_m2_min is not None and m2 <= state.soft_limit_m2_min and y < 0:
-                y = 0.0
+            block_y_pos = False  # 조이스틱 아래로(y>0) 차단
+            block_y_neg = False  # 조이스틱 위로(y<0) 차단
+
+            if y > 0:
+                # 밑으로 내려갈 때, M1이 좌우 80도를 넘어갔다면 -25도까지만 허용
+                if m1_p > 80.0 or m1_p < -80.0:
+                    if m2_p <= -25.0:
+                        block_y_pos = True
+                else:
+                    if m2_p <= -40.0:
+                        block_y_pos = True
+            
+            if y < 0:
+                # 위로는 +50도까지만
+                if m2_p >= 50.0:
+                    block_y_neg = True
+
+            # 사용자 설정 M2 리밋 추가 적용
+            if state.soft_limit_m2_max is not None and m2_e >= state.soft_limit_m2_max:
+                block_y_pos = True
+            if state.soft_limit_m2_min is not None and m2_e <= state.soft_limit_m2_min:
+                block_y_neg = True
+
+            if y > 0 and block_y_pos: y = 0.0
+            if y < 0 and block_y_neg: y = 0.0
 
             # M1 (수평) 리밋 검사
-            # x > 0 (조이스틱 우) → ESP32 값 증가(max 방향)
-            # x < 0 (조이스틱 좌) → ESP32 값 감소(min 방향)
-            if state.soft_limit_m1_max is not None and m1 >= state.soft_limit_m1_max and x > 0:
-                x = 0.0
-            if state.soft_limit_m1_min is not None and m1 <= state.soft_limit_m1_min and x < 0:
-                x = 0.0
+            block_x_pos = False  # 조이스틱 우측(x>0) 차단
+            block_x_neg = False  # 조이스틱 좌측(x<0) 차단
+
+            if x > 0:
+                if m2_p < -25.0:
+                    if m1_p >= 80.0: block_x_pos = True
+                else:
+                    if m1_p >= 180.0: block_x_pos = True
+            
+            if x < 0:
+                if m2_p < -25.0:
+                    if m1_p <= -80.0: block_x_neg = True
+                else:
+                    if m1_p <= -180.0: block_x_neg = True
+
+            # 사용자 설정 M1 리밋 추가 적용
+            if state.soft_limit_m1_max is not None and m1_e >= state.soft_limit_m1_max:
+                block_x_pos = True
+            if state.soft_limit_m1_min is not None and m1_e <= state.soft_limit_m1_min:
+                block_x_neg = True
+
+            if x > 0 and block_x_pos: x = 0.0
+            if x < 0 and block_x_neg: x = 0.0
             # -----------------------------------------------------------------
 
             if abs(x) < 0.001 and abs(y) < 0.001:
