@@ -19,6 +19,11 @@ def _cleanup_motors():
     if _cleaned_up:
         return
     _cleaned_up = True
+    
+    # TUI가 켜져있다면 중지하여 터미널 원래 상태 복구
+    import cli_ui
+    cli_ui.stop_tui()
+    
     print("\n[main] 종료 시그널 수신 — 모터 해제 중...")
     try:
         if state.device_type == "arduino":
@@ -57,16 +62,19 @@ setup_routes(app)
 # 하드웨어 초기화 (CLI 로딩 시퀀스 내부에서 실행되는 것처럼 딜레이 적용)
 cli_ui.run_loading_sequence()
 
+# TUI 대시보드 스레드 시작 (이후의 print()는 모두 가로채짐)
+cli_ui.start_tui()
+
 detector.start()
 motor_esp32.start()   # ESP32 연결
 motor_arduino.start() # Arduino 연결
 
 try:
     import waitress
-    cli_ui.console.print("[bold green]✔ All systems go![/bold green]")
-    cli_ui.console.print("[bold cyan]=> Waitress Production Server running at http://0.0.0.0:5000/[/bold cyan]")
-    cli_ui.console.print("[dim]Press Ctrl+C to quit[/dim]\n")
+    print("✔ All systems go!")
+    print("=> Waitress Production Server running at http://0.0.0.0:5000/")
+    print("Press Ctrl+C to quit")
     waitress.serve(app, host='0.0.0.0', port=5000)
 except ImportError:
-    cli_ui.console.print("[bold yellow]! Waitress not found, using Flask Dev Server[/bold yellow]")
+    print("! Waitress not found, using Flask Dev Server")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
