@@ -121,10 +121,31 @@ def joystick_dir():
             # 조이스틱에서 손을 뗌 → 즉시 정지
             esp.stop_motors()
         else:
-            # 순수 조그(Velocity) 제어 방식: 목표 위치를 보내는 대신 "속도 방향" 자체를 전송합니다.
-            # ESP32 펌웨어에 새로 추가된 JOG 모드와 Watchdog(150ms)을 활용합니다.
-            state.motor_moving = True
-            esp._send(f"JOG {x:.3f} {y:.3f}\n")
+            # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
+            m1_pos = state.esp32_pos_m1_deg
+            m2_pos = state.esp32_pos_m2_deg
+            
+            # 1. M2 (수직) 절대 한계: -45 ~ +45
+            if y > 0 and m2_pos >= 45.0: y = 0.0
+            if y < 0 and m2_pos <= -45.0: y = 0.0
+            
+            # 2. M1 (수평) 한계: M2가 -45 ~ -25 구간일 때는 -85 ~ +85, 그 외엔 -180 ~ +180
+            m1_limit = 85.0 if (-45.0 <= m2_pos <= -25.0) else 180.0
+            if x > 0 and m1_pos >= m1_limit: x = 0.0
+            if x < 0 and m1_pos <= -m1_limit: x = 0.0
+            
+            # 3. 하강 방지: M1이 85도를 넘은 상태에서 M2가 -25도 밑으로 내려가는 것을 차단
+            # 여유 마진을 둬서 -22도 이하로 내려가려 할 때 차단
+            if y < 0 and m2_pos <= -22.0 and abs(m1_pos) > 85.0:
+                y = 0.0
+            # ----------------------------------------------------
+
+            if abs(x) < 0.001 and abs(y) < 0.001:
+                esp.stop_motors()
+            else:
+                # 순수 조그(Velocity) 제어 방식: 목표 위치를 보내는 대신 "속도 방향" 자체를 전송합니다.
+                state.motor_moving = True
+                esp._send(f"JOG {x:.3f} {y:.3f}\n")
             
     return "OK"
 
