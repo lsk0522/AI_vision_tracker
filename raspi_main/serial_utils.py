@@ -12,19 +12,20 @@ def find_port(preferred_vids: set | None = None):
     preferred_vids: 선호하는 USB VID 집합 (예: ESP32용 CP210x, CH340 등)
                     None이면 VID 필터링 없이 첫 번째 포트 반환.
     """
-    if sys.platform.startswith('win'):
-        try:
-            import serial.tools.list_ports
-            ports = list(serial.tools.list_ports.comports())
-            if preferred_vids:
-                for p in ports:
-                    if p.vid in preferred_vids:
-                        return p.device
-            return ports[0].device if ports else None
-        except Exception:
+    try:
+        import serial.tools.list_ports
+        ports = list(serial.tools.list_ports.comports())
+        
+        if not ports:
             return None
-    else:
-        candidates = sorted(
-            glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
-        )
-        return candidates[0] if candidates else None
+            
+        if preferred_vids:
+            for p in ports:
+                if p.vid in preferred_vids:
+                    return p.device
+                    
+        # 선호하는 VID가 없거나 일치하는 게 없으면 첫 번째 포트 반환
+        return ports[0].device
+    except Exception as e:
+        print(f"[serial_utils] 탐색 에러: {e}")
+        return None
