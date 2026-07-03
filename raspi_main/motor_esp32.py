@@ -242,9 +242,8 @@ def _run():
             tx, ty = state.point[0], state.point[1]
             
             # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
-            gear_ratio = 5.0
-            m1_phys = state.esp32_pos_m1_deg / gear_ratio
-            m2_phys = state.esp32_pos_m2_deg / gear_ratio
+            m1_phys = state.esp32_pos_m1_deg
+            m2_phys = state.esp32_pos_m2_deg
             
             # 화면 중앙(320, 240)을 전송하면 모터가 해당 축의 회전을 멈춤.
             # 1. M2 절대 한계: -45 ~ +45

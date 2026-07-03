@@ -123,9 +123,11 @@ def joystick_dir():
         else:
             # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
             # ESP32는 모터 회전 각도를 보고하므로, 기어비(1:5)를 반영하여 실제 물리 각도를 구합니다.
-            gear_ratio = 5.0
-            m1_phys = state.esp32_pos_m1_deg / gear_ratio
-            m2_phys = state.esp32_pos_m2_deg / gear_ratio
+            # ESP32는 이미 44.44 steps/deg를 사용하므로 자체적으로 물리 각도와 일치할 가능성이 높습니다.
+            m1_phys = state.esp32_pos_m1_deg
+            m2_phys = state.esp32_pos_m2_deg
+            
+            print(f"[DEBUG SoftLimit] y={y:.3f} x={x:.3f} | M1={m1_phys:.2f}, M2={m2_phys:.2f}")
             
             # 1. M2 (수직) 절대 한계: -45(하단) ~ +45(상단)
             # y < 0 (조이스틱 위로) -> M2 증가(상승).
