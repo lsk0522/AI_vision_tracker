@@ -72,7 +72,8 @@ def start_tui():
     global _live
     logger.setup_logger()
     # screen=True로 하면 별도의 화면 버퍼에서 돌아가므로 종료 시 원래 터미널 화면 복구됨
-    _live = Live(generate_dashboard(), console=console, refresh_per_second=4, screen=True)
+    # get_renderable 파라미터로 함수를 넘겨야 매 프레임마다 화면이 갱신됩니다.
+    _live = Live(get_renderable=generate_dashboard, console=console, refresh_per_second=4, screen=True)
     _live.start()
 
 def stop_tui():
