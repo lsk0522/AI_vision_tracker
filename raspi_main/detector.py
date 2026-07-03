@@ -404,9 +404,9 @@ def _run():
                 if _csrt.active:
                     ball = _csrt.track(frame, motion)
 
-                # 2) ORB 실패 → Hough Circle (흰 공 등 원형 물체 대응)
-                if ball is None and motion is not None:
-                    ball = _circle.detect(frame, motion)
+                # 2) 원형 탐지(Hough Circle) 폴백은 사용자가 원치 않는 오작동(급발진)을 유발하므로 비활성화
+                # if ball is None and motion is not None:
+                #     ball = _circle.detect(frame, motion)
             else:
                 # 수동 모드 최적화: prev_frame만 최소한으로 유지
                 if prev_frame is None:

@@ -133,11 +133,13 @@ def set_input_mode():
     mode = request.args.get('mode', 'joystick')
     if mode in ('joystick', 'pointer', 'auto'):
         state.input_mode = mode
+        import motor_esp32 as esp
         if mode == 'auto':
             state.control_mode = 'auto'
+            if state.motor_connected:
+                esp.set_mode("track")
         else:
             state.control_mode = 'manual'
-            import motor_esp32 as esp
             if state.motor_connected:
                 if mode == 'joystick':
                     esp.set_mode("pos")
