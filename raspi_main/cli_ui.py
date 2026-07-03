@@ -33,7 +33,7 @@ def generate_dashboard() -> Layout:
     """화면 갱신 시마다 호출되어 레이아웃(표+로그)을 반환"""
     layout = Layout()
     layout.split_column(
-        Layout(name="header", size=7),
+        Layout(name="header", size=10),
         Layout(name="body")
     )
     

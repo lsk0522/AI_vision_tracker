@@ -3,6 +3,7 @@ import builtins
 import logging
 from collections import deque
 from datetime import datetime
+from rich.markup import escape
 
 MAX_LOGS = 15
 log_queue = deque(maxlen=MAX_LOGS)
@@ -11,7 +12,7 @@ class CustomStdout:
     def write(self, text):
         if text.strip():
             time_str = datetime.now().strftime("%H:%M:%S")
-            log_queue.append(f"[dim]{time_str}[/dim] {text.strip()}")
+            log_queue.append(f"[dim]{time_str}[/dim] {escape(text.strip())}")
     def flush(self):
         pass
         
@@ -29,7 +30,7 @@ def setup_logger():
         text = " ".join(str(a) for a in args)
         if text.strip():
             time_str = datetime.now().strftime("%H:%M:%S")
-            log_queue.append(f"[dim]{time_str}[/dim] {text.strip()}")
+            log_queue.append(f"[dim]{time_str}[/dim] {escape(text.strip())}")
             
     builtins.print = custom_print
 
@@ -38,7 +39,7 @@ def setup_logger():
         def emit(self, record):
             msg = self.format(record)
             time_str = datetime.now().strftime("%H:%M:%S")
-            log_queue.append(f"[dim]{time_str}[/dim] [yellow]{msg}[/yellow]")
+            log_queue.append(f"[dim]{time_str}[/dim] [yellow]{escape(msg)}[/yellow]")
             
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
