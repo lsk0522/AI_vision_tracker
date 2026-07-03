@@ -58,26 +58,28 @@ def generate_dashboard() -> Layout:
     table.add_row("System Mode", f"[bold yellow]{mode_str}[/]", f"Input: {state.input_mode}")
 
     # Soft Limits
-    def _fmt(v):
-        if v is None:
-            return "--"
-        # ESP32 단위 -> 물리 각도 변환
-        phys = v / state._PHYS_TO_ESP32 if hasattr(state, '_PHYS_TO_ESP32') else v
-        return f"{phys:.1f}"
+    def _to_phys_m1(v):
+        if v is None: return "--"
+        sc = getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
+        return f"{v / sc:.1f}"
+    def _to_phys_m2(v):
+        if v is None: return "--"
+        sc = getattr(state, '_M2_PHYS_TO_ESP32', 0.1222)
+        return f"{v / sc:.1f}"
     m1_min = getattr(state, 'soft_limit_m1_min', None)
     m1_max = getattr(state, 'soft_limit_m1_max', None)
     m2_min = getattr(state, 'soft_limit_m2_min', None)
     m2_max = getattr(state, 'soft_limit_m2_max', None)
     any_limit = any(v is not None for v in [m1_min, m1_max, m2_min, m2_max])
     limit_status = "[bold green]ON[/]" if any_limit else "[dim]OFF[/]"
-    # 현재 위치도 물리 각도로 변환
-    scale = state._PHYS_TO_ESP32 if hasattr(state, '_PHYS_TO_ESP32') else 1.0
-    m1_now_phys = state.esp32_pos_m1_deg / scale
-    m2_now_phys = state.esp32_pos_m2_deg / scale
+    sc_m1 = getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
+    sc_m2 = getattr(state, '_M2_PHYS_TO_ESP32', 0.1222)
+    m1_now = state.esp32_pos_m1_deg / sc_m1
+    m2_now = state.esp32_pos_m2_deg / sc_m2
     limit_detail = (
-        f"M1(Pan): {_fmt(m1_min)} ~ {_fmt(m1_max)} deg  |  "
-        f"M2(Tilt): {_fmt(m2_min)} ~ {_fmt(m2_max)} deg  |  "
-        f"Now M1:{m1_now_phys:.1f} M2:{m2_now_phys:.1f} deg"
+        f"M1(Pan): {_to_phys_m1(m1_min)} ~ {_to_phys_m1(m1_max)} deg  |  "
+        f"M2(Tilt): {_to_phys_m2(m2_min)} ~ {_to_phys_m2(m2_max)} deg  |  "
+        f"Now M1:{m1_now:.1f} M2:{m2_now:.1f} deg"
     )
     table.add_row("Limits", limit_status, limit_detail)
 
