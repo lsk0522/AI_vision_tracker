@@ -91,6 +91,12 @@
             <span class="app-title">AI VISION TRACKER</span>
         </div>
         <div class="header-right">
+            <!-- Fullscreen button -->
+            <button id="fullscreen-btn" aria-label="Fullscreen" class="icon-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+            </button>
             <!-- Motor status button -->
             <button id="motor-status-btn" aria-label="Motor Status">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -238,6 +244,29 @@
                             <line x1="12" y1="2" x2="12" y2="12"></line>
                         </svg>
                         <span style="color:#ff3b30;">모터 힘 강제 풀기 (전원 차단)</span>
+                    </button>
+
+                    <!-- Soft Limit Section -->
+                    <div style="height:1px; background:rgba(255,255,255,0.08); margin: 16px 0 12px 0;"></div>
+                    <div style="font-size:12px; font-weight:700; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">모터 리밋 설정</div>
+                    <p style="font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:12px; line-height:1.5;">조이스틱으로 모터를 끝점까지 움직인 뒤 버튼을 누르면 그 위치가 리밋으로 고정됩니다.</p>
+
+                    <div style="font-size:12px; color:rgba(255,255,255,0.6); margin-bottom:6px;">&#128208; 수직(Tilt / M2)</div>
+                    <div style="display:flex; gap:6px; margin-bottom:6px;">
+                        <button id="btn-limit-m2-max" class="motor-link-btn" style="flex:1; margin-top:0; font-size:12px; padding:8px 4px;">&#9650; 상단 리밋 설정</button>
+                        <button id="btn-limit-m2-min" class="motor-link-btn" style="flex:1; margin-top:0; font-size:12px; padding:8px 4px;">&#9660; 하단 리밋 설정</button>
+                    </div>
+                    <div id="limit-m2-status" style="font-size:11px; color:rgba(255,165,0,0.9); margin-bottom:12px; text-align:center;">리밋 없음</div>
+
+                    <div style="font-size:12px; color:rgba(255,255,255,0.6); margin-bottom:6px;">&#128260; 수평(Pan / M1)</div>
+                    <div style="display:flex; gap:6px; margin-bottom:6px;">
+                        <button id="btn-limit-m1-max" class="motor-link-btn" style="flex:1; margin-top:0; font-size:12px; padding:8px 4px;">&#9654; 우측 리밋 설정</button>
+                        <button id="btn-limit-m1-min" class="motor-link-btn" style="flex:1; margin-top:0; font-size:12px; padding:8px 4px;">&#9664; 좌측 리밋 설정</button>
+                    </div>
+                    <div id="limit-m1-status" style="font-size:11px; color:rgba(255,165,0,0.9); margin-bottom:12px; text-align:center;">리밋 없음</div>
+
+                    <button id="btn-clear-all-limits" class="motor-link-btn" style="border-color:rgba(255,159,10,0.5); background:rgba(255,159,10,0.12);">
+                        <span style="color:rgba(255,159,10,1);">&#128465; 모든 리밋 초기화</span>
                     </button>
                 </div>
             </div>

@@ -599,6 +599,58 @@ function closeSettingsModal(){
 settingsBtn.addEventListener("click", openSettings);
 closeSettings.addEventListener("click", closeSettingsModal);
 
+/* ==========================================
+   소프트웨어 리밋 설정 버튼
+   ========================================== */
+function setLimit(axis, end) {
+    fetch(`/set_limit?axis=${axis}&end=${end}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                showToast(`리밋 저장: ${axis.toUpperCase()} ${end === 'max' ? '상단/우측' : '하단/좌측'} = ${d.value.toFixed(1)}`, 'success');
+                updateLimitStatus();
+            }
+        })
+        .catch(() => showToast('리밋 저장 실패', 'error'));
+}
+
+function updateLimitStatus() {
+    fetch('/get_limits')
+        .then(r => r.json())
+        .then(d => {
+            const m2el = document.getElementById('limit-m2-status');
+            const m1el = document.getElementById('limit-m1-status');
+            if (!m2el || !m1el) return;
+
+            const fmt = v => v !== null ? v.toFixed(1) : '—';
+            const hasM2 = d.m2_min !== null || d.m2_max !== null;
+            const hasM1 = d.m1_min !== null || d.m1_max !== null;
+
+            m2el.style.color = hasM2 ? 'rgba(48,209,88,0.9)' : 'rgba(255,255,255,0.35)';
+            m2el.textContent = hasM2
+                ? `하단: ${fmt(d.m2_min)} ~ 상단: ${fmt(d.m2_max)}  (현재: ${d.m2_now.toFixed(1)})`
+                : '리밋 없음';
+
+            m1el.style.color = hasM1 ? 'rgba(48,209,88,0.9)' : 'rgba(255,255,255,0.35)';
+            m1el.textContent = hasM1
+                ? `좌측: ${fmt(d.m1_min)} ~ 우측: ${fmt(d.m1_max)}  (현재: ${d.m1_now.toFixed(1)})`
+                : '리밋 없음';
+        });
+}
+
+document.getElementById('btn-limit-m2-max')?.addEventListener('click', () => setLimit('m2', 'max'));
+document.getElementById('btn-limit-m2-min')?.addEventListener('click', () => setLimit('m2', 'min'));
+document.getElementById('btn-limit-m1-max')?.addEventListener('click', () => setLimit('m1', 'max'));
+document.getElementById('btn-limit-m1-min')?.addEventListener('click', () => setLimit('m1', 'min'));
+document.getElementById('btn-clear-all-limits')?.addEventListener('click', () => {
+    fetch('/clear_limit?axis=all&end=all')
+        .then(() => { showToast('모든 리밋 제거됨', 'info'); updateLimitStatus(); })
+        .catch(() => showToast('리밋 제거 실패', 'error'));
+});
+
+// 설정사 열릴 때 리밋 현황 새로고침
+settingsBtn.addEventListener("click", updateLimitStatus);
+
 settingsModal.addEventListener("click", function(e){
     if(e.target === settingsModal){
         closeSettingsModal();
@@ -2638,3 +2690,27 @@ window.setInputModeUI = function(mode) {
 
 // 실행 시 퀵 버튼 초기 상태 동기화
 _updateQuickAiBtn(inputMode || 'joystick');
+
+// ── Fullscreen Toggle ──────────────────────────────────────────────────
+const fullscreenBtn = document.getElementById("fullscreen-btn");
+if (fullscreenBtn) {
+    fullscreenBtn.addEventListener("click", () => {
+        if (!document.fullscreenElement) {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) { // Safari
+                document.documentElement.webkitRequestFullscreen();
+            } else if (document.documentElement.msRequestFullscreen) { // IE11
+                document.documentElement.msRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { // Safari
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { // IE11
+                document.msExitFullscreen();
+            }
+        }
+    });
+}

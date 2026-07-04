@@ -1,0 +1,124 @@
+import sys
+import time
+from rich.console import Console
+from rich.layout import Layout
+from rich.panel import Panel
+from rich.table import Table
+from rich.live import Live
+from rich.text import Text
+from rich.status import Status
+
+import state
+import logger
+
+# 원래 터미널 화면 출력을 보장하기 위해 sys.__stdout__ 사용
+# (logger.py에서 sys.stdout을 가로채더라도 화면을 그릴 수 있어야 함)
+_real_stdout = sys.__stdout__
+console = Console(file=_real_stdout)
+
+_live = None
+
+def run_loading_sequence():
+    """앱 시작 시 멋진 로딩 스피너 출력"""
+    with Status("[bold magenta]::[/bold magenta] [white]Initializing AI Vision Tracker...[/white]", spinner="dots12", spinner_style="bold magenta", console=console) as status:
+        time.sleep(0.8)
+        status.update("[bold magenta]::[/bold magenta] [white]Checking Hardware (Camera and ESP32)...[/white]")
+        time.sleep(1.0)
+        status.update("[bold magenta]::[/bold magenta] [white]Loading OpenCV CSRT Tracker Model...[/white]")
+        time.sleep(1.2)
+        status.update("[bold magenta]::[/bold magenta] [white]Starting Flask Web Server...[/white]")
+        time.sleep(0.5)
+
+def generate_dashboard() -> Layout:
+    """화면 갱신 시마다 호출되어 레이아웃(표+로그)을 반환"""
+    layout = Layout()
+    layout.split_column(
+        Layout(name="header", size=12),
+        Layout(name="body")
+    )
+    
+    # --- Status Table (상단) ---
+    table = Table(show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("Component", style="cyan", width=20)
+    table.add_column("Status", width=15)
+    table.add_column("Details")
+    
+    # Motor Status
+    motor_status = "[bold green]ONLINE[/]" if state.motor_connected else "[bold red]OFFLINE[/]"
+    motor_info = f"Port: {state.motor_port} | Tgt: ({state.motor_target_x}, {state.motor_target_y})" if state.motor_connected else "Waiting for connection..."
+    table.add_row("ESP32 Motors", motor_status, motor_info)
+    
+    # Camera Status
+    cam_status = "[bold green]ONLINE[/]"
+    fps_str = "Active" if getattr(state, 'current_frame', None) is not None else "No Feed"
+    table.add_row("Vision System", cam_status, f"Feed: {fps_str} | Tracker: {state.tracking_mode}")
+    
+    # Operation Mode
+    mode_str = "AUTO" if state.input_mode == "auto" else "MANUAL"
+    table.add_row("System Mode", f"[bold yellow]{mode_str}[/]", f"Input: {state.input_mode}")
+
+    # Soft Limits
+    def _to_phys_m1(v):
+        if v is None: return "--"
+        sc = getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
+        return f"{v / sc:.1f}"
+    def _to_phys_m2(v):
+        """M2 리밋 끝점을 물리 각도로 표시 (실측 변환 사용)"""
+        if v is None: return "--"
+        up_e = getattr(state, '_M2_ESP32_AT_UP',   -6.5)
+        up_p = getattr(state, '_M2_PHYS_AT_UP',    50.0)
+        dn_e = getattr(state, '_M2_ESP32_AT_DOWN',  4.5)
+        dn_p = getattr(state, '_M2_PHYS_AT_DOWN',  45.0)
+        # 리밋은 끝점이므로 면저 물리 각도로 표시
+        if v <= 0:   # 위 그룹 (ESP32 음수)
+            return f"+{up_p:.0f}"
+        else:         # 아래 그룹 (ESP32 양수)
+            return f"-{dn_p:.0f}"
+    m1_min = getattr(state, 'soft_limit_m1_min', None)
+    m1_max = getattr(state, 'soft_limit_m1_max', None)
+    m2_min = getattr(state, 'soft_limit_m2_min', None)
+    m2_max = getattr(state, 'soft_limit_m2_max', None)
+    any_limit = any(v is not None for v in [m1_min, m1_max, m2_min, m2_max])
+    
+    # 조이스틱 입력이 리밋에 막혔을 때 뜨는 경고 메시지
+    warning = getattr(state, 'active_limit_msg', "")
+    limit_status = f"[bold red]BLOCKED[/]" if warning else ("[bold green]ON[/]" if any_limit else "[dim]OFF[/]")
+    
+    m1_now = state.get_m1_phys()
+    m2_now = state.get_m2_phys()
+    
+    # 경고가 있으면 Detail 쪽에 경고를 띄워줌
+    if warning:
+        limit_detail = f"[bold red]⚠️ {warning}[/bold red]  (Now M1:{m1_now:.1f} M2:{m2_now:.1f} deg)"
+    else:
+        limit_detail = (
+            f"M1(Pan): {_to_phys_m1(m1_min)} ~ {_to_phys_m1(m1_max)} deg  |  "
+            f"M2(Tilt): {_to_phys_m2(m2_min)} ~ {_to_phys_m2(m2_max)} deg  |  "
+            f"Now M1:{m1_now:.1f} M2:{m2_now:.1f} deg"
+        )
+    table.add_row("Limits", limit_status, limit_detail)
+
+    layout["header"].update(Panel(table, title="[bold blue]AI Vision Tracker - Live Dashboard[/]", border_style="blue"))
+    
+    # --- Logs (하단) ---
+    logs = logger.get_logs()
+    # 로그 문자열을 합치고, Panel 안에 텍스트로 삽입
+    log_text = Text.from_markup("\n".join(logs))
+    layout["body"].update(Panel(log_text, title="[bold cyan]System Logs[/]", border_style="cyan"))
+    
+    return layout
+
+def start_tui():
+    """로거를 가로채고 TUI 대시보드 루프를 백그라운드로 시작"""
+    global _live
+    logger.setup_logger()
+    # screen=True로 하면 별도의 화면 버퍼에서 돌아가므로 종료 시 원래 터미널 화면 복구됨
+    # get_renderable 파라미터로 함수를 넘겨야 매 프레임마다 화면이 갱신됩니다.
+    _live = Live(get_renderable=generate_dashboard, console=console, refresh_per_second=4, screen=True)
+    _live.start()
+
+def stop_tui():
+    """TUI 대시보드 루프 종료"""
+    global _live
+    if _live:
+        _live.stop()

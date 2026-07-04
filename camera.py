@@ -10,7 +10,22 @@ import state
 import sys
 
 # ── Camera configuration state ─────────────────────────────────────
-_camera_index  = 0
+def _auto_find_camera():
+    """실제로 프레임이 읽히는 진짜 카메라 인덱스를 찾아냅니다. (라즈베리파이 더미 방지)"""
+    for i in range(10):
+        if sys.platform.startswith('win'):
+            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+        else:
+            cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
+            
+        if cap.isOpened():
+            ok, frame = cap.read()
+            cap.release()
+            if ok and frame is not None:
+                return i
+    return 0
+
+_camera_index  = _auto_find_camera()
 _cap           = None
 _cap_lock      = threading.Lock()
 
@@ -41,6 +56,8 @@ def _open_camera(index):
         cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
     else:
         cap = cv2.VideoCapture(index, cv2.CAP_V4L2)
+        # 라즈베리파이에서 고해상도 고프레임(30fps)을 확보하기 위해 MJPG 포맷 강제
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
 
     if not cap.isOpened():
         _is_dummy = True
