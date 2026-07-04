@@ -84,7 +84,7 @@ motor_esp32.start()   # ESP32 연결
 motor_arduino.start() # Arduino 연결
 
 try:
-    import waitress
+    import waitress  # type: ignore
     local_ip = get_local_ip()
     print("✔ All systems go!")
     print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
