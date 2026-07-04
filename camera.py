@@ -57,7 +57,7 @@ def _open_camera(index):
     else:
         cap = cv2.VideoCapture(index, cv2.CAP_V4L2)
         # 라즈베리파이에서 고해상도 고프레임(30fps)을 확보하기 위해 MJPG 포맷 강제
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # type: ignore
 
     if not cap.isOpened():
         _is_dummy = True
