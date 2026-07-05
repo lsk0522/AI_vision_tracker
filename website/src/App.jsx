@@ -207,7 +207,7 @@ function App() {
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-6">
             <a href="http://localhost:5000" className="px-8 py-4 rounded-full bg-brand-neon text-brand-light font-extrabold text-lg hover:scale-105 hover:bg-[#00ffaa] transition-all duration-300 shadow-[0_0_30px_rgba(0,255,170,0.3)] flex items-center justify-center gap-3 group">
-              <Zap size={22} className="group-hover:animate-bounce" /> 대시보드 접속하기
+              <Zap size={22} className="group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300" /> 대시보드 접속하기
             </a>
             <a href="https://github.com/lsk0522/AI_vision_tracker" className="px-8 py-4 rounded-full glass-panel text-white font-bold text-lg hover:scale-105 hover:bg-white/5 transition-all duration-300 border border-brand-border flex items-center justify-center gap-3">
               GitHub 코드 보기 <ExternalLink size={20} />
