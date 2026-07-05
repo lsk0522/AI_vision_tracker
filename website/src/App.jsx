@@ -1,8 +1,45 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Target, Shield, Cpu, ExternalLink, Activity, Server, Zap, Layers, Lock, X, Terminal } from 'lucide-react'
+import { Target, Shield, Cpu, ExternalLink, Activity, Server, Zap, Layers, Lock, X, Terminal, MousePointer2 } from 'lucide-react'
 import RobotViewer from './RobotViewer'
+import SimulationViewer from './SimulationViewer'
 import ErrorBoundary from './ErrorBoundary'
+
+const HERO_KEYWORDS = [
+  "실시간 객체 인식",
+  "AI 기반 자동 추적",
+  "물리적 안전 제어",
+  "2축 정밀 조준",
+  "초저지연 모터 응답"
+];
+
+function RollingHeroText() {
+  const [keywordIndex, setKeywordIndex] = useState(0);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setKeywordIndex((prev) => (prev + 1) % HERO_KEYWORDS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="mt-6 h-8 md:h-10 relative overflow-hidden w-full">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={keywordIndex}
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -30, opacity: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="absolute inset-0 text-2xl md:text-4xl font-bold text-white/90 flex items-center"
+        >
+          {HERO_KEYWORDS[keywordIndex]}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
 
 function App() {
   const [showDashboardModal, setShowDashboardModal] = useState(false);
@@ -50,6 +87,35 @@ function App() {
             className="w-full h-full border-none relative z-10 bg-transparent"
             title="AI Vision Tracker Dashboard"
           />
+        </div>
+      </div>
+    );
+  }
+
+  if (currentHash === '#Simulationrobot') {
+    return (
+      <div className="w-screen h-screen bg-brand-light flex flex-col overflow-hidden font-sans selection:bg-brand-neon selection:text-brand-light">
+        {/* Navbar specifically for the simulation view */}
+        <nav className="absolute top-0 w-full z-50 px-6 py-4 flex justify-between items-center pointer-events-none">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-brand-neon/20 border border-brand-neon/50 flex items-center justify-center neon-glow pointer-events-auto">
+              <Target size={18} className="text-brand-neon" />
+            </div>
+            <span className="font-bold text-lg tracking-tight text-white drop-shadow-md">AI Tracking Simulation</span>
+          </div>
+          <button 
+            onClick={() => window.location.hash = ''} 
+            className="px-6 py-2 rounded-full glass-panel text-white font-medium hover:bg-white/20 transition-colors border border-brand-border flex items-center gap-2 pointer-events-auto shadow-lg"
+          >
+            ← 메인 화면으로 돌아가기
+          </button>
+        </nav>
+        
+        {/* Simulation Viewer */}
+        <div className="flex-1 w-full relative bg-[#0b0f19]">
+          <ErrorBoundary>
+            <SimulationViewer />
+          </ErrorBoundary>
         </div>
       </div>
     );
@@ -147,7 +213,7 @@ function App() {
         </div>
 
         <motion.div 
-          className="flex-1 space-y-8 z-10 flex flex-col justify-center"
+          className="flex-1 z-10 flex flex-col justify-center items-start"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -156,17 +222,23 @@ function App() {
             <span className="w-2 h-2 rounded-full bg-brand-neon animate-pulse neon-glow"></span>
             Physical AI Platform
           </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]">
+          
+          <RollingHeroText />
+
+          <h1 className="mt-2 text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]">
             완벽을 향한 추적,<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-neon to-blue-400">
               AI Vision Tracker
             </span>
           </h1>
-          <p className="text-lg md:text-xl text-brand-muted max-w-xl leading-relaxed">
-            단순한 조이스틱 제어를 넘어선 차세대 스마트 트래킹 시스템.
+          <p className="mt-6 text-lg md:text-xl text-brand-muted max-w-xl leading-relaxed break-keep">
+            단순한 조이스틱 제어를 넘어선 차세대 스마트 트래킹 시스템.<br />
             소프트웨어 안전 리밋과 실시간 인공지능 객체 인식으로 가장 안정적인 물리적 AI 검증 환경을 제공합니다.
           </p>
-          <div className="pt-4 flex flex-wrap gap-4">
+          <div className="mt-8 flex flex-wrap gap-4">
+            <a href="#Simulationrobot" className="px-8 py-4 rounded-full bg-brand-neon text-[#0b0f19] font-extrabold hover:bg-[#00ffaa] transition-colors shadow-[0_0_20px_rgba(0,255,170,0.3)] flex items-center gap-2 group">
+              <MousePointer2 size={18} className="group-hover:-translate-y-1 transition-transform" /> 시뮬레이션 체험
+            </a>
             <a href="#features" className="px-8 py-4 rounded-full bg-white text-brand-light font-bold hover:bg-gray-200 transition-colors shadow-lg">
               기능 둘러보기
             </a>
@@ -245,7 +317,10 @@ function App() {
 
       {/* Features Section */}
       <section id="features" className="py-24 bg-brand-section border-y border-brand-border/50 relative z-10">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
+        {/* Background Grid Pattern */}
+        <div className="absolute inset-0 bg-grid-pattern pointer-events-none opacity-100 [mask-image:linear-gradient(to_bottom,transparent,black_10%,black_90%,transparent)]"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 md:px-8 relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">어떤 상황에서도 멈추지 않는 추적</h2>
             <p className="text-brand-muted text-lg max-w-2xl mx-auto break-keep leading-relaxed">
