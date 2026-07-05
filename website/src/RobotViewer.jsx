@@ -1,7 +1,7 @@
 import React, { Suspense, useRef } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, useGLTF, Bounds, useBounds, Center } from '@react-three/drei'
+import { OrbitControls, useGLTF, Bounds, useBounds, Center, Environment, ContactShadows, Grid } from '@react-three/drei'
 
 // 모델 로드 및 애니메이션
 function Model({ url }) {
@@ -16,25 +16,30 @@ function Model({ url }) {
         child.receiveShadow = true;
         
         if (child.material) {
-          const mName = child.material.name || '';
+          // 공유 재질 문제를 방지하기 위해 복제해서 독립 적용
+          child.material = child.material.clone();
           
-          // 아크릴/유리 패널 (푸른빛이 도는 회색 계열)
-          if (mName.includes('170,178,196') || mName.includes('202,209,238')) {
+          const r = Math.round(child.material.color.r * 255);
+          const g = Math.round(child.material.color.g * 255);
+          const b = Math.round(child.material.color.b * 255);
+          
+          // 아크릴/유리 패널 감지 (푸른빛이 도는 회색 또는 매우 밝은 회색)
+          if ((r > 150 && g > 150 && b > 170) || (r > 170 && g > 170 && b > 170 && Math.abs(r-b) < 10)) {
             child.material.transparent = true;
-            child.material.opacity = 0.3; // 반투명하게
-            child.material.roughness = 0.1; // 매끄럽게 (유리 질감)
-            child.material.metalness = 0.1;
+            child.material.opacity = 0.25; // 투명하게
+            child.material.roughness = 0.05; // 유리처럼 매끄럽게
+            child.material.metalness = 0.2;
             child.material.depthWrite = false; // 렌더링 겹침 방지
           } 
-          // 고무 발, 검정색 모터 등 (어두운 회색/검정 계열)
-          else if (mName.includes('25,25,25') || mName.includes('26,26,26') || mName.includes('28,28,28') || mName.includes('29,29,29') || mName.includes('64,64,64')) {
-            child.material.color.setHex(0x1a1a1a); // 확실한 검은색으로
-            child.material.roughness = 0.9; // 고무/무광 플라스틱 느낌
+          // 고무 발, 검정색 모터 등 감지 (어두운 색)
+          else if (r < 80 && g < 80 && b < 80) {
+            child.material.color.setHex(0x1a1a1a); // 확실한 검은색
+            child.material.roughness = 0.9; // 고무 질감
             child.material.metalness = 0.0;
           } 
-          // 나머지 금속 프레임 및 부품들
+          // 나머지 금속 부품
           else {
-            child.material.roughness = 0.4; 
+            child.material.roughness = 0.5; 
             child.material.metalness = 0.4; 
           }
           
@@ -46,7 +51,7 @@ function Model({ url }) {
           const edges = new THREE.EdgesGeometry(child.geometry, 15);
           const line = new THREE.LineSegments(
             edges, 
-            new THREE.LineBasicMaterial({ color: 0x222222, linewidth: 1, transparent: true, opacity: 0.5 })
+            new THREE.LineBasicMaterial({ color: 0x111111, linewidth: 1 }) // 완전 선명한 검은색
           );
           child.add(line);
           child.userData.hasEdges = true;
@@ -92,34 +97,35 @@ export default function RobotViewer() {
         style={{ width: '100%', height: '100%', display: 'block', background: '#f0f2f5' }}
         dpr={window.devicePixelRatio ? Math.min(2, window.devicePixelRatio) : 2}
       >
-        {/* 부드러운 주변광 */}
-        <ambientLight intensity={0.5} color="#ffffff" />
-        
-        {/* 주 조명 (따뜻한 톤, 그림자 생성) */}
-        <directionalLight 
-          castShadow 
-          position={[10, 15, 10]} 
-          intensity={1.8} 
-          color="#fff8eb" 
-          shadow-mapSize={[2048, 2048]} 
-        />
-        
-        {/* 보조 조명 (차가운 톤, 반대편에서 모델 음영 완화) */}
-        <directionalLight position={[-10, 10, 10]} intensity={0.8} color="#e0f2fe" />
-        
-        {/* 림 라이트 (모델 뒤쪽에서 윤곽선 강조) */}
-        <directionalLight position={[0, 10, -10]} intensity={1.2} color="#ffffff" />
+        <ambientLight intensity={0.5} />
+        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
+        <pointLight position={[-10, -10, -10]} intensity={0.5} />
 
         <Suspense fallback={null}>
-          {/*
-            Bounds: 자식 객체의 바운딩 박스를 계산해서
-            카메라가 모델 전체를 화면에 꽉 맞게(margin=1.2배 여유) 자동 배치
-            clip=true: 카메라 near/far도 자동 조정 → clipping 문제 원천 차단
-          */}
-          <Bounds fit clip observe margin={1.4}>
+          <Bounds fit clip observe margin={1.2}>
             <Model url={`${import.meta.env.BASE_URL}robot.glb`} />
             <AutoFit />
           </Bounds>
+
+          {/* 스튜디오 환경 맵 (금속 재질의 광택과 반사를 현실감 있게 만들어줌) */}
+          <Environment preset="city" />
+
+          {/* 바닥 그림자 (공중에 떠있는 모델 아래에 자연스러운 그림자 생성) */}
+          <ContactShadows position={[0, -1.5, 0]} opacity={0.4} scale={10} blur={2} far={4} />
+
+          {/* 바닥 그리드 (허전한 느낌을 없애고 전문적인 엔지니어링 툴 느낌 추가) */}
+          <Grid
+            position={[0, -1.5, 0]}
+            args={[20, 20]}
+            cellSize={0.5}
+            cellThickness={1}
+            cellColor="#6f7a8b"
+            sectionSize={2.5}
+            sectionThickness={1.5}
+            sectionColor="#3f4a5b"
+            fadeDistance={25}
+            fadeStrength={1}
+          />
         </Suspense>
 
         <OrbitControls
