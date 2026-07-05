@@ -1,12 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-light: #ffffff;
-  --color-brand-section: #f8faf9;
-  --color-brand-surface: #f0f5f2;
-  --color-brand-neon: #00c77d;
-  --color-brand-text: #0a1f16;
-  --color-brand-muted: #4a6558;
+  --color-brand-light: #0b0f19; /* Deep Space Navy Background */
+  --color-brand-section: #111827; /* Dark Grey/Navy for sections */
+  --color-brand-surface: #1f2937; /* Lighter surface for cards */
+  --color-brand-neon: #00ffaa; /* Vibrant Neon Green/Cyan */
+  --color-brand-text: #f9fafb; /* Bright text */
+  --color-brand-muted: #9ca3af; /* Muted grey text */
+  --color-brand-border: #374151; /* Subtle dark border */
 }
 
 body {
@@ -22,23 +23,25 @@ body {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-brand-section);
+  background: var(--color-brand-light);
 }
 ::-webkit-scrollbar-thumb {
-  background: #d1d9d5;
+  background: var(--color-brand-surface);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-brand-neon);
+  background: var(--color-brand-muted);
 }
 
 .neon-glow {
-  box-shadow: 0 0 15px rgba(0, 199, 125, 0.4);
+  /* 절제된 네온 효과 (투명도 0.15로 낮춤) */
+  box-shadow: 0 0 15px rgba(0, 255, 170, 0.15);
 }
 .glass-panel {
-  background: rgba(248, 250, 249, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  /* 절제된 글래스모피즘: 짙은 배경색에 낮은 불투명도 */
+  background: rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Ensure R3F canvas fills the container */
