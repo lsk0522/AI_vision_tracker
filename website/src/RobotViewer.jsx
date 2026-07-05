@@ -23,8 +23,12 @@ function Model({ url }) {
           const g = Math.round(child.material.color.g * 255);
           const b = Math.round(child.material.color.b * 255);
           
-          // 아크릴/유리 패널 감지 (순수한 회색이 아니라 확연히 푸른빛(Blue)이 도는 재질만)
-          if (b > r + 15 && b > g + 10 && r > 150) {
+          // 아크릴/유리 패널 감지 (정확한 유리 재질 색상만 타겟팅: 170,178,196 또는 202,209,238)
+          const isGlass = 
+            (Math.abs(r - 170) <= 3 && Math.abs(g - 178) <= 3 && Math.abs(b - 196) <= 3) ||
+            (Math.abs(r - 202) <= 3 && Math.abs(g - 209) <= 3 && Math.abs(b - 238) <= 3);
+
+          if (isGlass) {
             child.material.transparent = true;
             child.material.opacity = 0.25; // 투명하게
             child.material.roughness = 0.05; // 유리처럼 매끄럽게
