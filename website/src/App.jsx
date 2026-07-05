@@ -184,7 +184,7 @@ function App() {
         >
           <div className="absolute top-4 left-4 z-20 px-4 py-1.5 rounded-full bg-brand-surface/80 backdrop-blur-md text-xs font-semibold text-brand-muted border border-brand-border shadow-sm pointer-events-none flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-brand-neon"></div>
-            Interactive 3D Model
+            3D 하드웨어 미리보기
           </div>
           <div style={{position:'absolute',inset:0,height:'100%',width:'100%'}}>
             <ErrorBoundary>
