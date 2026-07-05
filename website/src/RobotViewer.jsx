@@ -16,10 +16,9 @@ function Model({ url }) {
         child.receiveShadow = true;
         
         if (child.material) {
-          // 기존 재질을 좀 더 밝게
-          child.material.color.setHex(0xe8e8e8);
-          child.material.roughness = 0.3; 
-          child.material.metalness = 0.5; 
+          // 원래 색상 유지 및 선명도만 살짝 조정
+          child.material.roughness = 0.4; 
+          child.material.metalness = 0.4; 
           child.material.needsUpdate = true;
         }
 
