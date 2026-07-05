@@ -198,8 +198,8 @@ function App() {
       <section className="py-24 max-w-7xl mx-auto px-4 md:px-8 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-extrabold mb-6">강력한 하드웨어와 소프트웨어의 결합</h2>
-          <p className="text-brand-muted text-lg max-w-2xl mx-auto">
-            단순한 카메라 트래커를 넘어선, 완벽한 AI Vision 추적 플랫폼을 위한 핵심 기반 기술
+          <p className="text-brand-muted text-lg max-w-2xl mx-auto break-keep leading-relaxed">
+            단순한 카메라 트래커를 넘어선,<br className="hidden sm:block" /> 완벽한 AI Vision 추적 플랫폼을 위한 핵심 기반 기술
           </p>
         </div>
         
@@ -214,7 +214,7 @@ function App() {
                 <Cpu className="text-brand-neon" size={24} />
               </div>
               <h3 className="text-3xl font-bold mb-4 text-white">Raspberry Pi 4 & ESP32</h3>
-              <p className="text-brand-muted text-lg leading-relaxed">강력한 연산 능력의 라즈베리파이가 AI 비전 처리를 전담하고, 실시간 모터 제어는 ESP32 하드웨어 인터럽트로 완벽하게 분산 처리하여 지연(Latency) 없는 추적을 보장합니다.</p>
+              <p className="text-brand-muted text-lg leading-relaxed break-keep">강력한 연산 능력의 라즈베리파이가 AI 비전 처리를 전담하고,<br />실시간 모터 제어는 ESP32 하드웨어 인터럽트로 완벽하게 분산 처리하여 지연(Latency) 없는 추적을 보장합니다.</p>
             </div>
           </div>
           
@@ -226,7 +226,7 @@ function App() {
               </div>
               <h3 className="text-2xl font-bold text-white">OpenCV CSRT Algorithm</h3>
             </div>
-            <p className="text-brand-muted leading-relaxed">기존 단순 색상 추적과 달리 다각도의 형태 변화와 가려짐(Occlusion)에도 강인한 CSRT 객체 추적 알고리즘 탑재</p>
+            <p className="text-brand-muted leading-relaxed break-keep">기존 단순 색상 추적과 달리 다각도의 형태 변화와<br />가려짐(Occlusion)에도 강인한 CSRT 객체 추적 알고리즘 탑재</p>
           </div>
           
           {/* Small Cards 1x1 */}
@@ -248,8 +248,8 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">어떤 상황에서도 멈추지 않는 추적</h2>
-            <p className="text-brand-muted text-lg max-w-2xl mx-auto">
-              소프트웨어와 하드웨어의 완벽한 조화를 통해 극한의 상황에서도 안전하게 대상을 놓치지 않습니다.
+            <p className="text-brand-muted text-lg max-w-2xl mx-auto break-keep leading-relaxed">
+              소프트웨어와 하드웨어의 완벽한 조화를 통해<br className="hidden sm:block" /> 극한의 상황에서도 안전하게 대상을 놓치지 않습니다.
             </p>
           </div>
 
@@ -313,8 +313,8 @@ function App() {
         </div>
         <div className="max-w-4xl mx-auto px-4 relative z-10 text-center">
           <h2 className="text-4xl md:text-6xl font-black mb-8 text-white">지금 바로 시작해보세요</h2>
-          <p className="text-xl text-brand-muted mb-12 max-w-2xl mx-auto leading-relaxed">
-            오픈소스로 공개된 프로젝트 코드를 확인하거나, 로컬 대시보드에 접속하여 직접 AI Vision Tracker를 조종해볼 수 있습니다.
+          <p className="text-xl text-brand-muted mb-12 max-w-2xl mx-auto leading-relaxed break-keep">
+            오픈소스로 공개된 프로젝트 코드를 확인하거나,<br className="hidden sm:block" /> 로컬 대시보드에 접속하여 직접 AI Vision Tracker를 조종해볼 수 있습니다.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-6">
             <a href="http://localhost:5000" onClick={handleDashboardClick} className="px-8 py-4 rounded-full bg-brand-neon text-brand-light font-extrabold text-lg hover:scale-105 hover:bg-[#00ffaa] transition-all duration-300 shadow-[0_0_30px_rgba(0,255,170,0.3)] flex items-center justify-center gap-3 group">
@@ -343,7 +343,7 @@ function FeatureCard({ icon, title, description }) {
         {icon}
       </div>
       <h3 className="text-xl font-bold mb-3 text-white">{title}</h3>
-      <p className="text-brand-muted leading-relaxed">{description}</p>
+      <p className="text-brand-muted leading-relaxed break-keep">{description}</p>
     </div>
   )
 }
