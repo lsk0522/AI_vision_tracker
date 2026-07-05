@@ -1,13 +1,81 @@
-import React from 'react'
-import { motion } from 'framer-motion'
-import { Target, Shield, Cpu, ExternalLink, Activity, Server, Zap, Layers, Lock } from 'lucide-react'
+import React, { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Target, Shield, Cpu, ExternalLink, Activity, Server, Zap, Layers, Lock, X, Terminal } from 'lucide-react'
 import RobotViewer from './RobotViewer'
 import ErrorBoundary from './ErrorBoundary'
 
 function App() {
+  const [showDashboardModal, setShowDashboardModal] = useState(false);
+
+  const handleDashboardClick = (e) => {
+    e.preventDefault();
+    setShowDashboardModal(true);
+  };
+
   return (
-    <div className="min-h-screen bg-brand-light text-brand-text font-sans selection:bg-brand-neon selection:text-brand-light select-none overflow-x-hidden">
+    <div className="min-h-screen bg-brand-light text-brand-text font-sans selection:bg-brand-neon selection:text-brand-light select-none overflow-x-hidden relative">
       
+      {/* Dashboard Connection Modal */}
+      <AnimatePresence>
+        {showDashboardModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDashboardModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg glass-panel bg-brand-surface/90 border border-brand-border/50 rounded-3xl p-8 shadow-2xl"
+            >
+              <button 
+                onClick={() => setShowDashboardModal(false)}
+                className="absolute top-6 right-6 text-brand-muted hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
+              
+              <div className="w-12 h-12 rounded-full bg-brand-neon/20 flex items-center justify-center text-brand-neon mb-6">
+                <Zap size={24} />
+              </div>
+              
+              <h3 className="text-2xl font-bold text-white mb-2">로컬 대시보드 연결 안내</h3>
+              <p className="text-brand-muted mb-6 leading-relaxed">
+                대시보드는 AI Vision Tracker 소프트웨어가 <strong className="text-white">사용자의 PC(로컬)에서 실행 중일 때만</strong> 접속할 수 있습니다. 
+              </p>
+
+              <div className="bg-brand-light rounded-xl p-5 mb-8 border border-brand-border/50">
+                <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <Terminal size={16} /> 실행 방법
+                </h4>
+                <ol className="text-sm text-brand-muted space-y-3 list-decimal list-inside">
+                  <li>GitHub에서 소스 코드를 다운로드합니다.</li>
+                  <li>파이썬 필수 패키지를 설치합니다 <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">pip install -r requirements.txt</code></li>
+                  <li>메인 스크립트를 실행합니다 <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">python app.py</code></li>
+                  <li>서버가 켜지면 아래 버튼을 눌러 접속하세요.</li>
+                </ol>
+              </div>
+
+              <div className="flex gap-4">
+                <a 
+                  href="http://localhost:5000" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  onClick={() => setShowDashboardModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-brand-neon text-brand-light font-bold text-center hover:bg-[#00ffaa] transition-colors"
+                >
+                  강제 접속 시도 (localhost:5000)
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Navigation */}
       <nav className="fixed w-full z-50 glass-panel border-b border-brand-border/30 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -59,7 +127,7 @@ function App() {
             <a href="#features" className="px-8 py-4 rounded-full bg-white text-brand-light font-bold hover:bg-gray-200 transition-colors shadow-lg">
               기능 둘러보기
             </a>
-            <a href="http://localhost:5000" target="_blank" rel="noreferrer" className="px-8 py-4 rounded-full glass-panel text-white font-medium hover:bg-white/10 transition-colors flex items-center gap-2 group border border-brand-border">
+            <a href="http://localhost:5000" target="_blank" rel="noreferrer" onClick={handleDashboardClick} className="px-8 py-4 rounded-full glass-panel text-white font-medium hover:bg-white/10 transition-colors flex items-center gap-2 group border border-brand-border">
               대시보드 접속 <ExternalLink size={18} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
             </a>
           </div>
@@ -206,7 +274,7 @@ function App() {
             오픈소스로 공개된 프로젝트 코드를 확인하거나, 로컬 대시보드에 접속하여 직접 AI Vision Tracker를 조종해볼 수 있습니다.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-6">
-            <a href="http://localhost:5000" className="px-8 py-4 rounded-full bg-brand-neon text-brand-light font-extrabold text-lg hover:scale-105 hover:bg-[#00ffaa] transition-all duration-300 shadow-[0_0_30px_rgba(0,255,170,0.3)] flex items-center justify-center gap-3 group">
+            <a href="http://localhost:5000" onClick={handleDashboardClick} className="px-8 py-4 rounded-full bg-brand-neon text-brand-light font-extrabold text-lg hover:scale-105 hover:bg-[#00ffaa] transition-all duration-300 shadow-[0_0_30px_rgba(0,255,170,0.3)] flex items-center justify-center gap-3 group">
               <Zap size={22} className="group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300" /> 대시보드 접속하기
             </a>
             <a href="https://github.com/lsk0522/AI_vision_tracker" className="px-8 py-4 rounded-full glass-panel text-white font-bold text-lg hover:scale-105 hover:bg-white/5 transition-all duration-300 border border-brand-border flex items-center justify-center gap-3">
