@@ -6,11 +6,54 @@ import ErrorBoundary from './ErrorBoundary'
 
 function App() {
   const [showDashboardModal, setShowDashboardModal] = useState(false);
+  const [currentHash, setCurrentHash] = useState(window.location.hash);
+
+  React.useEffect(() => {
+    const handleHashChange = () => setCurrentHash(window.location.hash);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const handleDashboardClick = (e) => {
     e.preventDefault();
     setShowDashboardModal(true);
   };
+
+  if (currentHash === '#controlweb') {
+    return (
+      <div className="w-screen h-screen bg-brand-light flex flex-col overflow-hidden font-sans selection:bg-brand-neon selection:text-brand-light">
+        {/* Navbar specifically for the iframe view */}
+        <nav className="w-full z-50 glass-panel border-b border-brand-border/30 px-6 py-4 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-brand-neon/20 border border-brand-neon/50 flex items-center justify-center neon-glow">
+              <Zap size={18} className="text-brand-neon" />
+            </div>
+            <span className="font-bold text-lg tracking-tight text-white">Dashboard Connect</span>
+          </div>
+          <button 
+            onClick={() => window.location.hash = ''} 
+            className="px-6 py-2 rounded-full glass-panel text-white font-medium hover:bg-white/10 transition-colors border border-brand-border flex items-center gap-2"
+          >
+            ← 메인 화면으로 돌아가기
+          </button>
+        </nav>
+        
+        {/* Iframe */}
+        <div className="flex-1 w-full relative bg-[#0b0f19] flex items-center justify-center">
+          <div className="absolute flex flex-col items-center justify-center text-brand-muted z-0">
+            <div className="w-12 h-12 border-4 border-brand-border border-t-brand-neon rounded-full animate-spin mb-4"></div>
+            <p>로컬 서버(localhost:5000) 연결 대기 중...</p>
+            <p className="text-sm mt-2">연결을 거부할 경우, 혼합 콘텐츠(Mixed Content) 차단을 해제해 주세요.</p>
+          </div>
+          <iframe 
+            src="http://localhost:5000" 
+            className="w-full h-full border-none relative z-10 bg-transparent"
+            title="AI Vision Tracker Dashboard"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-brand-light text-brand-text font-sans selection:bg-brand-neon selection:text-brand-light select-none overflow-x-hidden relative">
@@ -61,15 +104,15 @@ function App() {
               </div>
 
               <div className="flex gap-4">
-                <a 
-                  href="http://localhost:5000" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  onClick={() => setShowDashboardModal(false)}
+                <button 
+                  onClick={() => {
+                    setShowDashboardModal(false);
+                    window.location.hash = '#controlweb';
+                  }}
                   className="flex-1 py-3 rounded-xl bg-brand-neon text-brand-light font-bold text-center hover:bg-[#00ffaa] transition-colors"
                 >
-                  강제 접속 시도 (localhost:5000)
-                </a>
+                  강제 접속 시도 (내장 대시보드 열기)
+                </button>
               </div>
             </motion.div>
           </div>
@@ -250,7 +293,7 @@ function App() {
               { step: '03', title: 'Hardware Actuation', desc: '계산된 좌표를 ESP32가 넘겨받아 초정밀 PID 제어로 서보모터를 부드럽게 구동시킵니다.' }
             ].map((item, i) => (
               <div key={i} className="relative z-10 flex flex-row md:flex-col items-center md:items-center gap-6 md:gap-6 md:text-center w-full md:w-1/3 group">
-                <div className="w-20 h-20 shrink-0 rounded-full glass-panel flex items-center justify-center text-2xl font-black text-brand-neon border border-brand-border shadow-lg group-hover:scale-110 group-hover:border-brand-neon/50 transition-transform duration-300">
+                <div className="w-20 h-20 shrink-0 rounded-full bg-[#1f2937] flex items-center justify-center text-2xl font-black text-[#00ffaa] border-2 border-[#00ffaa] shadow-[0_0_20px_rgba(0,255,170,0.4)] group-hover:scale-110 group-hover:shadow-[0_0_30px_rgba(0,255,170,0.8)] transition-all duration-300 relative z-20">
                   {item.step}
                 </div>
                 <div>
