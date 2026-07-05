@@ -23,8 +23,8 @@ function Model({ url }) {
           const g = Math.round(child.material.color.g * 255);
           const b = Math.round(child.material.color.b * 255);
           
-          // 아크릴/유리 패널 감지 (푸른빛이 도는 회색 또는 매우 밝은 회색)
-          if ((r > 150 && g > 150 && b > 170) || (r > 170 && g > 170 && b > 170 && Math.abs(r-b) < 10)) {
+          // 아크릴/유리 패널 감지 (순수한 회색이 아니라 확연히 푸른빛(Blue)이 도는 재질만)
+          if (b > r + 15 && b > g + 10 && r > 150) {
             child.material.transparent = true;
             child.material.opacity = 0.25; // 투명하게
             child.material.roughness = 0.05; // 유리처럼 매끄럽게
@@ -37,8 +37,10 @@ function Model({ url }) {
             child.material.roughness = 0.9; // 고무 질감
             child.material.metalness = 0.0;
           } 
-          // 나머지 금속 부품
+          // 나머지 일반 금속 부품 (알루미늄 프로파일, 로봇 팔 등)
           else {
+            child.material.transparent = false; // 반드시 불투명하게 유지
+            child.material.opacity = 1.0;
             child.material.roughness = 0.5; 
             child.material.metalness = 0.4; 
           }
@@ -46,12 +48,13 @@ function Model({ url }) {
           child.material.needsUpdate = true;
         }
 
-        // 모서리(Edge) 음영선 추가 (형태가 또렷하게 보이게)
+        // 모서리(Edge) 음영선 추가 (캐드 도면처럼 깔끔하게)
         if (!child.userData.hasEdges) {
-          const edges = new THREE.EdgesGeometry(child.geometry, 15);
+          // 각도를 30도로 줘서 불필요한 내부 곡면 선은 그리지 않게 함
+          const edges = new THREE.EdgesGeometry(child.geometry, 30);
           const line = new THREE.LineSegments(
             edges, 
-            new THREE.LineBasicMaterial({ color: 0x111111, linewidth: 1 }) // 완전 선명한 검은색
+            new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }) 
           );
           child.add(line);
           child.userData.hasEdges = true;
