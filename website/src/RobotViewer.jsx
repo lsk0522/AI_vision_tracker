@@ -1,4 +1,5 @@
 import React, { Suspense, useRef } from 'react'
+import * as THREE from 'three'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, useGLTF, Bounds, useBounds, Center } from '@react-three/drei'
 
@@ -7,7 +8,7 @@ function Model({ url }) {
   const { scene } = useGLTF(url)
   const group = useRef()
 
-  // 모델 질감(텍스처) 이쁘게 업그레이드 및 선명도 향상
+  // 모델 질감(텍스처) 이쁘게 업그레이드 및 모서리 선명도(외곽선) 향상
   React.useEffect(() => {
     scene.traverse((child) => {
       if (child.isMesh) {
@@ -15,10 +16,22 @@ function Model({ url }) {
         child.receiveShadow = true;
         
         if (child.material) {
-          // 광택을 살려서 경계선을 뚜렷하게 (선명도 상승 효과)
-          child.material.roughness = 0.2; 
-          child.material.metalness = 0.7; 
+          // 기존 재질을 좀 더 밝게
+          child.material.color.setHex(0xe8e8e8);
+          child.material.roughness = 0.3; 
+          child.material.metalness = 0.5; 
           child.material.needsUpdate = true;
+        }
+
+        // 모서리(Edge) 음영선 추가 (형태가 또렷하게 보이게)
+        if (!child.userData.hasEdges) {
+          const edges = new THREE.EdgesGeometry(child.geometry, 15);
+          const line = new THREE.LineSegments(
+            edges, 
+            new THREE.LineBasicMaterial({ color: 0x222222, linewidth: 1, transparent: true, opacity: 0.5 })
+          );
+          child.add(line);
+          child.userData.hasEdges = true;
         }
       }
     })
