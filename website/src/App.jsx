@@ -199,7 +199,7 @@ function App() {
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-extrabold mb-6">강력한 하드웨어와 소프트웨어의 결합</h2>
           <p className="text-brand-muted text-lg max-w-2xl mx-auto">
-            단순한 카메라 트래커를 넘어선, 완벽한 AI Vision 추적 플랫폼을 위한 기술 스택
+            단순한 카메라 트래커를 넘어선, 완벽한 AI Vision 추적 플랫폼을 위한 핵심 기반 기술
           </p>
         </div>
         
@@ -233,7 +233,7 @@ function App() {
           <div className="md:col-span-1 md:row-span-1 glass-panel rounded-3xl p-6 flex flex-col justify-center items-center text-center group transition-transform duration-300 hover:-translate-y-1 hover:border-brand-neon/50">
             <Layers size={40} className="text-brand-neon mb-4 group-hover:scale-110 transition-transform" />
             <h3 className="font-bold text-lg mb-2 text-white">React + Three.js</h3>
-            <p className="text-brand-muted text-sm">웹 기반 3D 디지털 트윈</p>
+            <p className="text-brand-muted text-sm">실시간 3D 모니터링</p>
           </div>
           <div className="md:col-span-1 md:row-span-1 glass-panel rounded-3xl p-6 flex flex-col justify-center items-center text-center group transition-transform duration-300 hover:-translate-y-1 hover:border-purple-400/50">
             <Lock size={40} className="text-purple-400 mb-4 group-hover:scale-110 transition-transform" />
