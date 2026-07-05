@@ -86,7 +86,7 @@ export default function RobotViewer() {
             clip=true: 카메라 near/far도 자동 조정 → clipping 문제 원천 차단
           */}
           <Bounds fit clip observe margin={1.4}>
-            <Model url="/robot.glb" />
+            <Model url={`${import.meta.env.BASE_URL}robot.glb`} />
             <AutoFit />
           </Bounds>
         </Suspense>
@@ -104,4 +104,4 @@ export default function RobotViewer() {
   )
 }
 
-useGLTF.preload('/robot.glb')
+useGLTF.preload(`${import.meta.env.BASE_URL}robot.glb`)
