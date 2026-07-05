@@ -16,9 +16,28 @@ function Model({ url }) {
         child.receiveShadow = true;
         
         if (child.material) {
-          // 원래 색상 유지 및 선명도만 살짝 조정
-          child.material.roughness = 0.4; 
-          child.material.metalness = 0.4; 
+          const mName = child.material.name || '';
+          
+          // 아크릴/유리 패널 (푸른빛이 도는 회색 계열)
+          if (mName.includes('170,178,196') || mName.includes('202,209,238')) {
+            child.material.transparent = true;
+            child.material.opacity = 0.3; // 반투명하게
+            child.material.roughness = 0.1; // 매끄럽게 (유리 질감)
+            child.material.metalness = 0.1;
+            child.material.depthWrite = false; // 렌더링 겹침 방지
+          } 
+          // 고무 발, 검정색 모터 등 (어두운 회색/검정 계열)
+          else if (mName.includes('25,25,25') || mName.includes('26,26,26') || mName.includes('28,28,28') || mName.includes('29,29,29') || mName.includes('64,64,64')) {
+            child.material.color.setHex(0x1a1a1a); // 확실한 검은색으로
+            child.material.roughness = 0.9; // 고무/무광 플라스틱 느낌
+            child.material.metalness = 0.0;
+          } 
+          // 나머지 금속 프레임 및 부품들
+          else {
+            child.material.roughness = 0.4; 
+            child.material.metalness = 0.4; 
+          }
+          
           child.material.needsUpdate = true;
         }
 
