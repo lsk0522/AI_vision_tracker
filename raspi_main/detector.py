@@ -50,7 +50,7 @@ class KalmanTracker:
         self.kf.errorCovPost        = np.eye(4, dtype=np.float32) * 10.0
         self.initialized = False
         self.lost = 0
-        self.MAX_LOST = 20
+        self.MAX_LOST = 60  # 물체가 화면을 벗어나거나 가려졌을 때 관성으로 예측하는 프레임 수 (약 2초)
 
     def update(self, cx, cy):
         m = np.array([[np.float32(cx)], [np.float32(cy)]])
@@ -300,10 +300,10 @@ class CSRTTracker:
                             corrected_x = x1 + best_loc[0]
                             corrected_y = y1 + best_loc[1]
                             bbox = (corrected_x, corrected_y, cw, ch)
-                        # 만약 일치율이 극도로 낮다면(0.25 미만), 물체가 화면 밖으로 나갔거나 엉뚱한 배경을 잡은 것임!
-                        elif best_val < 0.25:
+                        # 만약 일치율이 낮다면(0.35 미만), 물체가 화면 밖으로 나갔거나 다른 물체(손 등)에 가려진 것임!
+                        elif best_val < 0.35:
                             ok = False
-                            print(f"[CSRT] Target left screen or severe drift (score={best_val:.2f}). Forcing recovery.")
+                            print(f"[CSRT] Target occluded or left screen (score={best_val:.2f}). Forcing recovery.")
             
             # ── 2. 트래커 완전 실패 시 360도 다각도 템플릿 매칭 전역 복구 ──
             # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
@@ -332,7 +332,7 @@ class CSRTTracker:
                                 best_loc = max_loc
                                 best_tpl = stpl
                 
-                if best_val > 0.48 and best_tpl is not None: # 잃어버렸지만 저장된 각도/크기 중 하나와 형태가 비슷하면
+                if best_val > 0.42 and best_tpl is not None: # 잃어버렸지만 저장된 각도/크기 중 하나와 형태가 비슷하면
                     tw, th = best_tpl.shape[1], best_tpl.shape[0]
                     new_bbox = (best_loc[0], best_loc[1], tw, th)
                     self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
