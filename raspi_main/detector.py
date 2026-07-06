@@ -89,6 +89,7 @@ class CSRTTracker:
         self.learn_zone: tuple[int,int,int,int] = (170, 90, 300, 300)  # (x,y,w,h)
         self.templates = [] # 다중 템플릿(360도 학습) 리스트 (최대 5장)
         self._start: float = 0.0
+        self._stationary_frames = 0
         self.load_saved_data()
 
     @property
@@ -276,7 +277,29 @@ class CSRTTracker:
 
             ok, bbox = self.tracker.update(enhanced_frame)
             
-            # ── 1. 정밀 트래킹 교정 (Local Template Drift Correction) ──
+            # ── 1. 정지된 배경(책상, 칠판 등) 오인식 완벽 차단 ──
+            # 비슷한 색상(형광색)의 책상이나 벽을 물체로 착각하여 추적하는 것을 막기 위해,
+            # 현재 추적 중인 박스 영역에 '움직임'이 전혀 없다면 가짜(배경)로 판별하고 즉시 추적을 포기합니다.
+            if ok and motion is not None:
+                mx1 = max(0, int(bbox[0]))
+                my1 = max(0, int(bbox[1]))
+                mx2 = min(motion.shape[1], int(bbox[0] + bbox[2]))
+                my2 = min(motion.shape[0], int(bbox[1] + bbox[3]))
+                if mx2 > mx1 and my2 > my1:
+                    motion_roi = motion[my1:my2, mx1:mx2]
+                    # 움직이는 픽셀이 거의 없다면 (10개 미만)
+                    if cv2.countNonZero(motion_roi) < 10:
+                        self._stationary_frames += 1
+                    else:
+                        self._stationary_frames = 0
+                        
+                    # 5프레임(약 0.15초) 연속으로 정지 상태면 가짜 배경으로 판단하고 쳐냄!
+                    if self._stationary_frames > 5:
+                        ok = False
+                        self._stationary_frames = 0
+                        print("[CSRT] Dropped target due to perfectly stationary distractor (e.g. desk/wall).")
+
+            # ── 2. 정밀 트래킹 교정 (Local Template Drift Correction) ──
             # CSRT가 추적 중일 때, 사용자의 아이디어대로 "저장된 캡처 사진"과 현재 영역을 실시간으로 비교하여
             # 박스가 물체의 중심에서 살짝 벗어나는 현상(Drift)을 픽셀 단위로 완벽하게 교정합니다.
             if ok and len(self.templates) > 0:
@@ -374,6 +397,7 @@ class CSRTTracker:
             self.learning = False
             self.tracker = None
             self.templates = []
+            self._stationary_frames = 0
 
 # ── Hough Circle 폴백 (흰 공 등 원형 물체) ────────────────
 class CircleDetector:
