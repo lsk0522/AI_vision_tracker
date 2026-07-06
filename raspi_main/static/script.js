@@ -212,8 +212,21 @@ function drawCrosshair(){
         ctx.lineWidth = 2;
 
         if (!lost && ballState.x !== undefined) {
-            // 실제 검출 박스
-            ctx.strokeRect(ballState.x, ballState.y, ballState.w, ballState.h);
+            if (ballState.contour && ballState.contour.length > 0) {
+                // 객체의 실제 윤곽선(다각형) 그리기
+                ctx.beginPath();
+                ballState.contour.forEach((pt, i) => {
+                    const px = ballState.x + pt[0] * ballState.w;
+                    const py = ballState.y + pt[1] * ballState.h;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                });
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                // 윤곽선 정보가 없을 경우 폴백(네모 박스)
+                ctx.strokeRect(ballState.x, ballState.y, ballState.w, ballState.h);
+            }
         }
 
         // 칼만 예측 위치 (작은 십자선)

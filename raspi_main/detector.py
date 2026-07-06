@@ -99,6 +99,7 @@ class CSRTTracker:
         self.templates = [] # 다중 템플릿(360도 학습) 리스트 (최대 5장)
         self._start: float = 0.0
         self._stationary_frames = 0
+        self.learned_contour = None # 학습된 객체의 폴리곤 윤곽선
         self.load_saved_data()
 
     @property
@@ -200,6 +201,15 @@ class CSRTTracker:
                 if contours:
                     largest = max(contours, key=cv2.contourArea)
                     rx, ry, rw, rh = cv2.boundingRect(largest)
+                    
+                    # 윤곽선 단순화 및 정규화 (UI 렌더링용)
+                    epsilon = 0.015 * cv2.arcLength(largest, True)
+                    approx = cv2.approxPolyDP(largest, epsilon, True)
+                    if rw > 0 and rh > 0:
+                        self.learned_contour = []
+                        for pt in approx:
+                            px, py = pt[0]
+                            self.learned_contour.append([float(px - rx) / rw, float(py - ry) / rh])
                     
                     # 전경이 노이즈 수준이 아니라면 박스 갱신
                     if rw > 20 and rh > 20:
@@ -418,7 +428,8 @@ class CSRTTracker:
         return {
             "cx": cx, "cy": cy,
             "x": x, "y": y, "w": w, "h": h,
-            "matches": 100, "predicted": False
+            "matches": 100, "predicted": False,
+            "contour": getattr(self, 'learned_contour', None)
         }
 
     def reset(self):
@@ -428,6 +439,7 @@ class CSRTTracker:
             self.tracker = None
             self.templates = []
             self._stationary_frames = 0
+            self.learned_contour = None
 
 # ── Hough Circle 폴백 (흰 공 등 원형 물체) ────────────────
 class CircleDetector:
