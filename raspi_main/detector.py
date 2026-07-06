@@ -36,6 +36,15 @@ def _enhance_contrast(frame):
     cl = clahe.apply(l)
     return cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
 
+# ── 헬퍼: 색상 분포(히스토그램) 계산 ─────────────────────
+def _compute_color_hist(img):
+    """물체의 색상(Hue)과 채도(Saturation) 특징을 수치화하여 추출합니다."""
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # H: 0~180, S: 0~256
+    hist = cv2.calcHist([hsv], [0, 1], None, [30, 32], [0, 180, 0, 256])
+    cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+    return hist
+
 # ── 칼만 필터 ────────────────────────────────────────────
 class KalmanTracker:
     def __init__(self):
@@ -210,9 +219,15 @@ class CSRTTracker:
             # 에러 발생 시 사용자가 그린 원본 박스를 그대로 사용
 
         try:
-            # 다각도(Multi-Template) 학습: 새로운 각도의 이미지를 누적 저장
+            # 다각도(Multi-Template) 학습: 새로운 각도의 이미지와 색상 분포(히스토그램)를 누적 저장
             new_template = enhanced_frame[y1:y1+h, x1:x1+w].copy()
-            self.templates.append(new_template)
+            new_hist = _compute_color_hist(new_template)
+            
+            self.templates.append({
+                "img": new_template,
+                "hist": new_hist
+            })
+            
             if len(self.templates) > 5:
                 self.templates.pop(0) # 최신 5개 각도만 유지
             
@@ -319,8 +334,9 @@ class CSRTTracker:
                         best_loc = None
                         
                         # 현재 추정된 물체 크기(cw, ch)에 맞춰 저장된 사진들을 변환 후 정밀 비교
-                        for tpl in self.templates:
-                            stpl = cv2.resize(tpl, (cw, ch))
+                        for tpl_data in self.templates:
+                            tpl_img = tpl_data["img"]
+                            stpl = cv2.resize(tpl_img, (cw, ch))
                             res = cv2.matchTemplate(roi, stpl, cv2.TM_CCOEFF_NORMED)
                             _, max_val, _, max_loc = cv2.minMaxLoc(res)
                             if max_val > best_val:
@@ -334,35 +350,52 @@ class CSRTTracker:
                             ok = False
                             print(f"[CSRT] Target occluded or severe drift (score={best_val:.2f}). Forcing recovery.")
             
-            # ── 2. 트래커 완전 실패 시 360도 다각도 템플릿 매칭 전역 복구 ──
-            # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
-            # 현재 화면에서 가장 비슷한 형태가 있는지 찾아냅니다. (배드민턴 콕 등 3D 회전 물체에 필수)
+            # ── 3. 2단계 정밀 전역 복구 (Shape + Color Multi-Feature Fusion) ──
+            # 트래커가 대상을 완전히 놓쳤을 때(not ok), 화면 전체를 스캔하여 물체를 다시 찾아냅니다.
             if not ok and len(self.templates) > 0:
-                best_val = 0
+                best_total_score = 0
                 best_loc = None
-                best_tpl = None
+                best_tpl_img = None
                 
-                # 저장된 모든 각도의 템플릿과 비교 (크기 변화 대응을 위해 3가지 스케일 적용)
-                for tpl in self.templates:
-                    if tpl.shape[0] > 0 and tpl.shape[1] > 0:
+                # 저장된 모든 각도의 템플릿(사진+색상)과 비교
+                for tpl_data in self.templates:
+                    tpl_img = tpl_data["img"]
+                    tpl_hist = tpl_data["hist"]
+                    
+                    if tpl_img.shape[0] > 0 and tpl_img.shape[1] > 0:
                         for scale in (0.8, 1.0, 1.25):
-                            stw = int(tpl.shape[1] * scale)
-                            sth = int(tpl.shape[0] * scale)
-                            # 스케일된 템플릿이 화면보다 크거나 너무 작으면 패스
+                            stw = int(tpl_img.shape[1] * scale)
+                            sth = int(tpl_img.shape[0] * scale)
                             if stw < 15 or sth < 15 or stw >= enhanced_frame.shape[1] or sth >= enhanced_frame.shape[0]:
                                 continue
                             
-                            stpl = cv2.resize(tpl, (stw, sth))
-                            res = cv2.matchTemplate(enhanced_frame, stpl, cv2.TM_CCOEFF_NORMED)
-                            _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                            stpl = cv2.resize(tpl_img, (stw, sth))
                             
-                            if max_val > best_val:
-                                best_val = max_val
-                                best_loc = max_loc
-                                best_tpl = stpl
+                            # [1차] 형태 검증 (Shape Matching)
+                            res = cv2.matchTemplate(enhanced_frame, stpl, cv2.TM_CCOEFF_NORMED)
+                            _, shape_score, _, max_loc = cv2.minMaxLoc(res)
+                            
+                            # 형태가 50% 이상 일치할 때만 2차 검증 진행 (속도 최적화 및 엉뚱한 배경 필터링)
+                            if shape_score > 0.50:
+                                tx, ty = max_loc
+                                roi = enhanced_frame[ty:ty+sth, tx:tx+stw]
+                                
+                                # [2차] 색상 검증 (Color Histogram Matching)
+                                roi_hist = _compute_color_hist(roi)
+                                color_score = cv2.compareHist(tpl_hist, roi_hist, cv2.HISTCMP_CORREL)
+                                color_score = max(0, color_score) # 음수 점수 방지
+                                
+                                # [최종] 종합 점수 산출 (형태 60% + 색상 40%)
+                                total_score = (shape_score * 0.6) + (color_score * 0.4)
+                                
+                                if total_score > best_total_score:
+                                    best_total_score = total_score
+                                    best_loc = max_loc
+                                    best_tpl_img = stpl
                 
-                if best_val > 0.65 and best_tpl is not None: # 진짜 콕(형태 완벽 일치)일 때만 복구
-                    tw, th = best_tpl.shape[1], best_tpl.shape[0]
+                # 종합 점수가 60% 이상일 때만 복구 (진짜 콕임이 형태와 색상 모두로 교차 검증됨)
+                if best_total_score > 0.60 and best_tpl_img is not None:
+                    tw, th = best_tpl_img.shape[1], best_tpl_img.shape[0]
                     new_bbox = (best_loc[0], best_loc[1], tw, th)
                     self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
                     self.tracker.init(enhanced_frame, new_bbox)
