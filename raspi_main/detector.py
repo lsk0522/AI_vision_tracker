@@ -194,52 +194,21 @@ class CSRTTracker:
 
         ok, bbox = self.tracker.update(enhanced_frame)
         
-        # ── Competitive Tracking (경쟁적 템플릿 매칭 복구 알고리즘) ──
-        # 트래커가 평소처럼 추적 중일 때, 전역 탐색에서 "월등히 더 좋은" 일치 항목을 찾으면 거기로 점프합니다.
-        # 이 방식은 가장자리 여부와 무관하게 작동하며, 정상 추적 중일 때는 점프하지 않아 매우 안정적입니다.
-        if self.template is not None and self.template.shape[0] > 0 and self.template.shape[1] > 0:
+        # ── 트래커 실패 시 템플릿 매칭 복구 ──
+        # 정상 추적 중일 때 매 프레임 전체 탐색을 하면 라즈베리파이에서 프레임 저하(뚝뚝 끊김)가 심각하게 발생하므로,
+        # 트래커가 대상을 완전히 놓쳤을 때(not ok)만 복구를 시도합니다.
+        if not ok and self.template is not None and self.template.shape[0] > 0 and self.template.shape[1] > 0:
             res = cv2.matchTemplate(enhanced_frame, self.template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(res)
             
-            if max_val > 0.65: # 전역 탐색에서 상당히 비슷한 물체 발견
-                new_tx, new_ty = max_loc
-                new_cx = new_tx + self.template.shape[1] // 2
-                new_cy = new_ty + self.template.shape[0] // 2
-                
-                jump = False
-                if ok:
-                    tx, ty, tw, th = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-                    cx = tx + tw // 2
-                    cy = ty + th // 2
-                    dist = ((cx - new_cx)**2 + (cy - new_cy)**2)**0.5
-                    
-                    if dist > 50: # 현재 추적 중인 곳과 거리가 꽤 멀다면
-                        # 현재 추적 중인 곳의 점수 계산
-                        pad = 10
-                        rx1, ry1 = max(0, tx - pad), max(0, ty - pad)
-                        rx2, ry2 = min(enhanced_frame.shape[1], tx + tw + pad), min(enhanced_frame.shape[0], ty + th + pad)
-                        roi = enhanced_frame[ry1:ry2, rx1:rx2]
-                        
-                        current_score = 0
-                        if roi.shape[0] >= self.template.shape[0] and roi.shape[1] >= self.template.shape[1]:
-                            res_roi = cv2.matchTemplate(roi, self.template, cv2.TM_CCOEFF_NORMED)
-                            _, current_score, _, _ = cv2.minMaxLoc(res_roi)
-                        
-                        # 전역에서 찾은 점수가 현재 추적 중인 점수보다 월등히(0.15 이상) 높다면,
-                        # 이는 트래커가 엉뚱한 배경을 추적 중이고 진짜 물체가 딴 곳에 나타났다는 뜻!
-                        if max_val > current_score + 0.15:
-                            jump = True
-                            print(f"[CSRT] Competitive jump! cur_score={current_score:.2f}, new_score={max_val:.2f}, dist={dist:.0f}")
-                else:
-                    jump = True # 트래커가 아예 끊겼을 경우 즉시 점프
-                    
-                if jump:
-                    tw, th = self.template.shape[1], self.template.shape[0]
-                    new_bbox = (new_tx, new_ty, tw, th)
-                    self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
-                    self.tracker.init(frame, new_bbox)
-                    bbox = new_bbox
-                    ok = True
+            if max_val > 0.65: # 잃어버렸지만 템플릿과 비슷한 형태를 다시 찾은 경우
+                tw, th = self.template.shape[1], self.template.shape[0]
+                new_bbox = (max_loc[0], max_loc[1], tw, th)
+                self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
+                self.tracker.init(enhanced_frame, new_bbox)
+                bbox = new_bbox
+                ok = True
+                print(f"[CSRT] Recovered via template matching! score={max_val:.2f}")
 
         if not ok:
             return None
