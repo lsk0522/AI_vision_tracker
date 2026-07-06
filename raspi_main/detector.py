@@ -300,6 +300,10 @@ class CSRTTracker:
                             corrected_x = x1 + best_loc[0]
                             corrected_y = y1 + best_loc[1]
                             bbox = (corrected_x, corrected_y, cw, ch)
+                        # 만약 일치율이 극도로 낮다면(0.25 미만), 물체가 화면 밖으로 나갔거나 엉뚱한 배경을 잡은 것임!
+                        elif best_val < 0.25:
+                            ok = False
+                            print(f"[CSRT] Target left screen or severe drift (score={best_val:.2f}). Forcing recovery.")
             
             # ── 2. 트래커 완전 실패 시 360도 다각도 템플릿 매칭 전역 복구 ──
             # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
