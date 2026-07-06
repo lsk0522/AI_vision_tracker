@@ -267,7 +267,41 @@ class CSRTTracker:
 
             ok, bbox = self.tracker.update(enhanced_frame)
             
-            # ── 트래커 실패 시 360도 다각도 템플릿 매칭 복구 ──
+            # ── 1. 정밀 트래킹 교정 (Local Template Drift Correction) ──
+            # CSRT가 추적 중일 때, 사용자의 아이디어대로 "저장된 캡처 사진"과 현재 영역을 실시간으로 비교하여
+            # 박스가 물체의 중심에서 살짝 벗어나는 현상(Drift)을 픽셀 단위로 완벽하게 교정합니다.
+            if ok and len(self.templates) > 0:
+                cx, cy, cw, ch = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+                
+                if cw > 10 and ch > 10:
+                    pad = int(max(cw, ch) * 0.3) # 30% 주변 여유 공간 탐색
+                    x1 = max(0, cx - pad)
+                    y1 = max(0, cy - pad)
+                    x2 = min(enhanced_frame.shape[1], cx + cw + pad)
+                    y2 = min(enhanced_frame.shape[0], cy + ch + pad)
+                    
+                    roi = enhanced_frame[y1:y2, x1:x2]
+                    
+                    if roi.shape[0] >= ch and roi.shape[1] >= cw:
+                        best_val = 0
+                        best_loc = None
+                        
+                        # 현재 추정된 물체 크기(cw, ch)에 맞춰 저장된 사진들을 변환 후 정밀 비교
+                        for tpl in self.templates:
+                            stpl = cv2.resize(tpl, (cw, ch))
+                            res = cv2.matchTemplate(roi, stpl, cv2.TM_CCOEFF_NORMED)
+                            _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                            if max_val > best_val:
+                                best_val = max_val
+                                best_loc = max_loc
+                                
+                        # 일치율이 높을 경우(0.55 이상), CSRT의 오차를 무시하고 사진과 정확히 겹치는 곳으로 조준점 강제 교정!
+                        if best_val > 0.55 and best_loc is not None:
+                            corrected_x = x1 + best_loc[0]
+                            corrected_y = y1 + best_loc[1]
+                            bbox = (corrected_x, corrected_y, cw, ch)
+            
+            # ── 2. 트래커 완전 실패 시 360도 다각도 템플릿 매칭 전역 복구 ──
             # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
             # 현재 화면에서 가장 비슷한 형태가 있는지 찾아냅니다. (배드민턴 콕 등 3D 회전 물체에 필수)
             if not ok and len(self.templates) > 0:
