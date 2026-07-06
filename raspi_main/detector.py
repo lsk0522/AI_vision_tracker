@@ -130,9 +130,63 @@ class CSRTTracker:
         # 밝은 환경 대비 개선
         enhanced_frame = _enhance_contrast(frame)
         
-        # ── BBox 자동 정밀 보정 제거 ──
-        # (Canny Edge 등으로 자동 축소하면 배경이 섞이거나 엉뚱한 곳을 잡는 문제가 큼. 
-        # 사용자가 그린 박스(x1, y1, w, h)를 그대로 신뢰하여 CSRT에 전달하는 것이 훨씬 정확함)
+        # ── GrabCut을 이용한 지능형 배경 제거 및 BBox 정밀 보정 ──
+        # 사용자가 대충 친 박스(x1, y1, w, h) 주변의 배경(칠판, TV 등)을 AI로 싹둑 잘라내고,
+        # 물체 본체에만 딱 맞는 정밀한 박스로 줄여서 CSRT 트래커가 배경에 속지 않게 만듭니다.
+        try:
+            # GrabCut은 연산이 무거우므로 ROI를 살짝 확장한 영역 안에서만 수행 (속도 최적화)
+            pad = 20
+            gx1 = max(0, x1 - pad)
+            gy1 = max(0, y1 - pad)
+            gx2 = min(img_w, x2 + pad)
+            gy2 = min(img_h, y2 + pad)
+            gw = gx2 - gx1
+            gh = gy2 - gy1
+            
+            # 박스가 너무 작으면 GrabCut 생략
+            if gw > 30 and gh > 30:
+                grab_roi = enhanced_frame[gy1:gy2, gx1:gx2].copy()
+                
+                # GrabCut을 위한 초기 마스크 및 임시 배열 할당
+                mask = np.zeros(grab_roi.shape[:2], np.uint8)
+                bgdModel = np.zeros((1, 65), np.float64)
+                fgdModel = np.zeros((1, 65), np.float64)
+                
+                # 사용자가 그린 박스 좌표를 ROI 내부 좌표계로 변환
+                rect = (x1 - gx1, y1 - gy1, w, h)
+                
+                # GrabCut 실행 (3번 반복) - rect 바깥은 확실한 배경, 안은 미정(아마 전경)
+                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 3, cv2.GC_INIT_WITH_RECT)
+                
+                # 확실한 전경(1)이거나 아마 전경(3)인 부분만 1로, 나머진 0으로 마스킹
+                fg_mask = np.where((mask == 1) | (mask == 3), 255, 0).astype('uint8')
+                
+                # 노이즈 제거를 위한 모폴로지 연산
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+                fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
+                
+                # 살아남은 전경 픽셀의 가장 큰 덩어리를 찾음
+                contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                if contours:
+                    largest = max(contours, key=cv2.contourArea)
+                    rx, ry, rw, rh = cv2.boundingRect(largest)
+                    
+                    # 전경이 노이즈 수준이 아니라면 박스 갱신
+                    if rw > 20 and rh > 20:
+                        x1 = gx1 + rx
+                        y1 = gy1 + ry
+                        w = rw
+                        h = rh
+                        # 박스가 화면을 넘지 않도록 재검증
+                        x1 = max(0, min(img_w - 1, x1))
+                        y1 = max(0, min(img_h - 1, y1))
+                        x2 = max(0, min(img_w, x1 + w))
+                        y2 = max(0, min(img_h, y1 + h))
+                        w = x2 - x1
+                        h = y2 - y1
+        except Exception as e:
+            print(f"[GrabCut] Error during background removal: {e}")
+            # 에러 발생 시 사용자가 그린 원본 박스를 그대로 사용
 
         try:
             self.active = False # 진행 중인 track() 메서드 충돌 방지
