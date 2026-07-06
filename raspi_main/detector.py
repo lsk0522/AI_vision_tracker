@@ -27,6 +27,15 @@ def _motion_mask(frame, prev_frame):
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
     return cv2.dilate(mask, kernel, iterations=2)
 
+# ── 헬퍼: 밝은 환경 대비 개선 (CLAHE) ────────────────────
+def _enhance_contrast(frame):
+    """밝은 환경이나 역광에서 객체 인식률을 높이기 위해 대비를 극대화합니다."""
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    return cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
+
 # ── 칼만 필터 ────────────────────────────────────────────
 class KalmanTracker:
     def __init__(self):
@@ -158,11 +167,14 @@ class CSRTTracker:
         try:
             self.active = False # 진행 중인 track() 메서드 충돌 방지
             
-            # 전역 템플릿 탐색 복구를 위한 원본 템플릿 저장
-            self.template = frame[y1:y1+h, x1:x1+w].copy()
+            # 밝은 환경 대비 개선 적용
+            enhanced_frame = _enhance_contrast(frame)
+            
+            # 전역 템플릿 탐색 복구를 위한 원본 템플릿 저장 (대비 개선된 이미지로 저장)
+            self.template = enhanced_frame[y1:y1+h, x1:x1+w].copy()
             
             self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
-            self.tracker.init(frame, (x1, y1, w, h))
+            self.tracker.init(enhanced_frame, (x1, y1, w, h))
             self.active = True
             self.learning = False
             state.learning_failed = False
@@ -210,13 +222,16 @@ class CSRTTracker:
         if not self.active or self.tracker is None:
             return None
 
-        ok, bbox = self.tracker.update(frame)
+        # 밝은 환경 대비 개선 적용
+        enhanced_frame = _enhance_contrast(frame)
+
+        ok, bbox = self.tracker.update(enhanced_frame)
         
         # ── Competitive Tracking (경쟁적 템플릿 매칭 복구 알고리즘) ──
         # 트래커가 평소처럼 추적 중일 때, 전역 탐색에서 "월등히 더 좋은" 일치 항목을 찾으면 거기로 점프합니다.
         # 이 방식은 가장자리 여부와 무관하게 작동하며, 정상 추적 중일 때는 점프하지 않아 매우 안정적입니다.
         if self.template is not None and self.template.shape[0] > 0 and self.template.shape[1] > 0:
-            res = cv2.matchTemplate(frame, self.template, cv2.TM_CCOEFF_NORMED)
+            res = cv2.matchTemplate(enhanced_frame, self.template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(res)
             
             if max_val > 0.65: # 전역 탐색에서 상당히 비슷한 물체 발견
@@ -235,8 +250,8 @@ class CSRTTracker:
                         # 현재 추적 중인 곳의 점수 계산
                         pad = 10
                         rx1, ry1 = max(0, tx - pad), max(0, ty - pad)
-                        rx2, ry2 = min(frame.shape[1], tx + tw + pad), min(frame.shape[0], ty + th + pad)
-                        roi = frame[ry1:ry2, rx1:rx2]
+                        rx2, ry2 = min(enhanced_frame.shape[1], tx + tw + pad), min(enhanced_frame.shape[0], ty + th + pad)
+                        roi = enhanced_frame[ry1:ry2, rx1:rx2]
                         
                         current_score = 0
                         if roi.shape[0] >= self.template.shape[0] and roi.shape[1] >= self.template.shape[1]:
