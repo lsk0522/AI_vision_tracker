@@ -148,8 +148,8 @@ class CSRTTracker:
         # 사용자가 대충 친 박스(x1, y1, w, h) 주변의 배경(칠판, TV 등)을 AI로 싹둑 잘라내고,
         # 물체 본체에만 딱 맞는 정밀한 박스로 줄여서 CSRT 트래커가 배경에 속지 않게 만듭니다.
         try:
-            # GrabCut은 연산이 무거우므로 ROI를 살짝 확장한 영역 안에서만 수행 (속도 최적화)
-            pad = 20
+            # GrabCut은 연산이 무거우므로 ROI를 확장한 영역 안에서만 수행
+            pad = 60 # 패딩을 60으로 늘려 배경(칠판 등)의 색상 정보를 충분히 학습하게 함
             gx1 = max(0, x1 - pad)
             gy1 = max(0, y1 - pad)
             gx2 = min(img_w, x2 + pad)
@@ -180,14 +180,24 @@ class CSRTTracker:
                 # GrabCut 1차 실행 (네모칸 기준)
                 cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 1, cv2.GC_INIT_WITH_RECT)
                 
-                # ── 사용자 행동 대응: 손으로 가리고 학습할 경우 ──
-                # 사용자가 콕 주변의 다른 물건을 가리기 위해 손을 사용할 경우, 손이 물체로 인식되지 않도록
-                # 피부색 픽셀을 강제로 '확실한 배경(cv2.GC_BGD)'으로 마킹합니다.
+                # ── 사용자 행동 대응 및 핵심 물체 강조 ──
+                # 1. 피부색 픽셀을 강제로 '확실한 배경(cv2.GC_BGD)'으로 마킹하여 손가락을 날립니다.
                 skin = _skin_mask(grab_roi)
                 mask[skin == 255] = cv2.GC_BGD
                 
-                # 손을 제거한 마스크로 GrabCut 2차 실행 (정밀도 대폭 상승)
-                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 2, cv2.GC_INIT_WITH_MASK)
+                # 2. 박스 정중앙(핵심 물체 위치)은 확실한 전경(cv2.GC_FGD)으로 강제 지정합니다.
+                cx_box = rx + rw // 2
+                cy_box = ry + rh // 2
+                fw = max(2, rw // 10)
+                fh = max(2, rh // 10)
+                
+                # SegFault 방지: 인덱스 범위 초과 방지
+                y_start, y_end = max(0, cy_box - fh), min(gh, cy_box + fh)
+                x_start, x_end = max(0, cx_box - fw), min(gw, cx_box + fw)
+                mask[y_start:y_end, x_start:x_end] = cv2.GC_FGD
+                
+                # 3. 손을 제거하고 중앙을 강조한 마스크로 GrabCut 3회 반복 실행 (초정밀화)
+                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 3, cv2.GC_INIT_WITH_MASK)
                 
                 # 확실한 전경(1)이거나 아마 전경(3)인 부분만 1로, 나머진 0으로 마스킹
                 fg_mask = np.where((mask == 1) | (mask == 3), 255, 0).astype('uint8')
