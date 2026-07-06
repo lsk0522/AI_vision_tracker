@@ -127,45 +127,12 @@ class CSRTTracker:
             state.learning_failed = True
             return
 
-        # 밝은 환경 대비 개선을 가장 먼저 적용하여, BBox 보정(Canny Edge) 시 윤곽선이 뚜렷하게 잡히도록 함
+        # 밝은 환경 대비 개선
         enhanced_frame = _enhance_contrast(frame)
-
-        # ── 배경 및 손 제거를 통한 BBox 자동 정밀 보정 ──
-        roi = enhanced_frame[y1:y2, x1:x2]
-        skin = _skin_mask(roi)
-        no_skin = cv2.bitwise_not(skin)
         
-        # Canny Edge로 객체의 윤곽 파악 (배경 무시)
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blurred, 30, 150)
-        
-        # 손이 아니면서 엣지가 있는 부분
-        obj_mask = cv2.bitwise_and(edges, no_skin)
-        
-        # 객체 덩어리 생성
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
-        obj_mask = cv2.morphologyEx(obj_mask, cv2.MORPH_CLOSE, kernel)
-        obj_mask = cv2.dilate(obj_mask, kernel, iterations=2)
-        
-        contours, _ = cv2.findContours(obj_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if contours:
-            c = max(contours, key=cv2.contourArea)
-            rx, ry, rw, rh = cv2.boundingRect(c)
-            # 노이즈가 아닌 유의미한 객체 크기라면 bbox 정밀 갱신
-            if rw > 15 and rh > 15:
-                pad_x = 5
-                pad_y = 5
-                new_x1 = max(x1, x1 + rx - pad_x)
-                new_y1 = max(y1, y1 + ry - pad_y)
-                new_x2 = min(x2, x1 + rx + rw + pad_x*2)
-                new_y2 = min(y2, y1 + ry + rh + pad_y*2)
-                
-                # 만약 정밀 갱신된 박스가 유효하면 적용
-                if new_x2 > new_x1 and new_y2 > new_y1:
-                    x1, y1 = new_x1, new_y1
-                    w = new_x2 - new_x1
-                    h = new_y2 - new_y1
+        # ── BBox 자동 정밀 보정 제거 ──
+        # (Canny Edge 등으로 자동 축소하면 배경이 섞이거나 엉뚱한 곳을 잡는 문제가 큼. 
+        # 사용자가 그린 박스(x1, y1, w, h)를 그대로 신뢰하여 CSRT에 전달하는 것이 훨씬 정확함)
 
         try:
             self.active = False # 진행 중인 track() 메서드 충돌 방지
@@ -226,18 +193,6 @@ class CSRTTracker:
         enhanced_frame = _enhance_contrast(frame)
 
         ok, bbox = self.tracker.update(enhanced_frame)
-        
-        # ── 실시간 배경 적응 (Online Learning) ──
-        # 트래커가 성공적으로 대상을 쫓고 있다면, 대상의 변화(조명, 각도 등)를 실시간으로 학습합니다.
-        if ok and self.template is not None:
-            tx, ty, tw, th = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-            # 프레임 범위를 벗어나지 않도록 안전하게 클리핑
-            rx1, ry1 = max(0, tx), max(0, ty)
-            rx2, ry2 = min(enhanced_frame.shape[1], tx + tw), min(enhanced_frame.shape[0], ty + th)
-            if (rx2 - rx1) == self.template.shape[1] and (ry2 - ry1) == self.template.shape[0]:
-                roi = enhanced_frame[ry1:ry2, rx1:rx2]
-                # 현재 모습을 2% 반영하여 템플릿 갱신 (지수 이동 평균) - 대상의 변화를 지속적으로 따라감
-                self.template = cv2.addWeighted(self.template, 0.98, roi, 0.02, 0)
         
         # ── Competitive Tracking (경쟁적 템플릿 매칭 복구 알고리즘) ──
         # 트래커가 평소처럼 추적 중일 때, 전역 탐색에서 "월등히 더 좋은" 일치 항목을 찾으면 거기로 점프합니다.
