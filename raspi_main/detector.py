@@ -295,8 +295,8 @@ class CSRTTracker:
                                 best_val = max_val
                                 best_loc = max_loc
                                 
-                        # 일치율이 높을 경우(0.55 이상), CSRT의 오차를 무시하고 사진과 정확히 겹치는 곳으로 조준점 강제 교정!
-                        if best_val > 0.55 and best_loc is not None:
+                        # 일치율이 매우 높을 경우(0.75 이상)에만 CSRT의 오차를 교정 (비슷한 색상(배경/옷)에 끌려가지 않도록 방지)
+                        if best_val > 0.75 and best_loc is not None:
                             corrected_x = x1 + best_loc[0]
                             corrected_y = y1 + best_loc[1]
                             bbox = (corrected_x, corrected_y, cw, ch)
