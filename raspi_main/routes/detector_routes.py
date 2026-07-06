@@ -142,3 +142,10 @@ def add_learning():
     n = int(request.args.get('n', 20))
     det.start_learning(n_samples=n)
     return "OK"
+
+@bp.route('/set_target_type')
+def set_target_type():
+    t_type = request.args.get('type', 'other')
+    if t_type in ('ball', 'other'):
+        state.target_type = t_type
+    return "OK"

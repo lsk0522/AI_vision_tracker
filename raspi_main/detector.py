@@ -406,13 +406,26 @@ def _run():
                 motion = _motion_mask(frame, prev_frame) if prev_frame is not None else None
                 prev_frame = frame.copy()
 
-                # 1) CSRT AI 트래커
-                if _csrt.active:
-                    ball = _csrt.track(frame, motion)
-
-                # 2) ORB 실패 → Hough Circle (흰 공 등 원형 물체 대응)
-                if ball is None and motion is not None:
-                    ball = _circle.detect(frame, motion)
+                if state.target_type == "ball":
+                    # 동그란 공 전용 트래킹 알고리즘: 원형 감지를 최우선으로 사용
+                    ball_obj = _circle.detect(frame, motion)
+                    if ball_obj:
+                        ball = ball_obj
+                        # 공이 감지되었지만 CSRT가 작동 중이면 (보조용으로) 업데이트만 수행
+                        if _csrt.active:
+                            _csrt.track(frame, motion)
+                    else:
+                        # 원형을 못 찾은 경우에만 CSRT 트래커를 보조로 사용
+                        if _csrt.active:
+                            ball = _csrt.track(frame, motion)
+                else:
+                    # 기타 사물 전용 (기존 방식): CSRT 템플릿 매칭을 1순위로 사용
+                    if _csrt.active:
+                        ball = _csrt.track(frame, motion)
+                    
+                    # CSRT 실패 시 보조 수단으로 원형 감지 시도 (원래 v1.0.0 로직)
+                    if ball is None and motion is not None:
+                        ball = _circle.detect(frame, motion)
             else:
                 # 수동 모드 최적화: prev_frame만 최소한으로 유지
                 if prev_frame is None:

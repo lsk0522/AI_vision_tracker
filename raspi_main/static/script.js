@@ -946,12 +946,31 @@ roiOverlay.addEventListener("touchmove",  e => { e.preventDefault(); const t=e.t
 roiOverlay.addEventListener("touchend",   e => { const t=e.changedTouches[0]; _roiPointerUp(t.clientX,t.clientY); });
 
 btnRoiCancel.addEventListener("click", closeROISelect);
+
+const targetTypeModal = document.getElementById("target-type-modal");
+const btnTypeBall     = document.getElementById("btn-type-ball");
+const btnTypeOther    = document.getElementById("btn-type-other");
+
 btnRoiConfirm.addEventListener("click", async () => {
     if(!_roiRect) return;
     const {x,y,w,h} = _roiRect;
     await fetch(`/set_learn_zone?x=${x}&y=${y}&w=${w}&h=${h}`).catch(()=>{});
     currentLearnZone = { x, y, w, h };
     closeROISelect();
+    
+    // 물체 종류 선택 모달 띄우기
+    targetTypeModal.style.display = "flex";
+});
+
+btnTypeBall.addEventListener("click", async () => {
+    targetTypeModal.style.display = "none";
+    await fetch('/set_target_type?type=ball').catch(()=>{});
+    _startLearningSession();
+});
+
+btnTypeOther.addEventListener("click", async () => {
+    targetTypeModal.style.display = "none";
+    await fetch('/set_target_type?type=other').catch(()=>{});
     _startLearningSession();
 });
 
