@@ -275,17 +275,26 @@ class CSRTTracker:
                 best_loc = None
                 best_tpl = None
                 
-                # 저장된 모든 각도의 템플릿과 비교
+                # 저장된 모든 각도의 템플릿과 비교 (크기 변화 대응을 위해 3가지 스케일 적용)
                 for tpl in self.templates:
                     if tpl.shape[0] > 0 and tpl.shape[1] > 0:
-                        res = cv2.matchTemplate(enhanced_frame, tpl, cv2.TM_CCOEFF_NORMED)
-                        _, max_val, _, max_loc = cv2.minMaxLoc(res)
-                        if max_val > best_val:
-                            best_val = max_val
-                            best_loc = max_loc
-                            best_tpl = tpl
+                        for scale in (0.8, 1.0, 1.25):
+                            stw = int(tpl.shape[1] * scale)
+                            sth = int(tpl.shape[0] * scale)
+                            # 스케일된 템플릿이 화면보다 크거나 너무 작으면 패스
+                            if stw < 15 or sth < 15 or stw >= enhanced_frame.shape[1] or sth >= enhanced_frame.shape[0]:
+                                continue
+                            
+                            stpl = cv2.resize(tpl, (stw, sth))
+                            res = cv2.matchTemplate(enhanced_frame, stpl, cv2.TM_CCOEFF_NORMED)
+                            _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                            
+                            if max_val > best_val:
+                                best_val = max_val
+                                best_loc = max_loc
+                                best_tpl = stpl
                 
-                if best_val > 0.60 and best_tpl is not None: # 잃어버렸지만 저장된 각도 중 하나와 형태가 비슷하면
+                if best_val > 0.48 and best_tpl is not None: # 잃어버렸지만 저장된 각도/크기 중 하나와 형태가 비슷하면
                     tw, th = best_tpl.shape[1], best_tpl.shape[0]
                     new_bbox = (best_loc[0], best_loc[1], tw, th)
                     self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
