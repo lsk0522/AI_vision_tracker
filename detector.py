@@ -270,26 +270,6 @@ class CSRTTracker:
         frame_h, frame_w = frame.shape[:2]
         x = max(0, min(frame_w - 1, x))
         y = max(0, min(frame_h - 1, y))
-        w = min(frame_w - x, w)
-        h = min(frame_h - y, h)
-
-        # ── 실시간 배경 적응 (Online Learning) ──
-        if ok and self.template is not None and w > 0 and h > 0:
-            roi = frame[y:y+h, x:x+w]
-            if roi.shape[0] == self.template.shape[0] and roi.shape[1] == self.template.shape[1]:
-                # 현재 모습을 2% 반영하여 템플릿 갱신 (지수 이동 평균)
-                self.template = cv2.addWeighted(self.template, 0.98, roi, 0.02, 0)
-            
-            # 약 2초(60 프레임) 주기로 CSRT 트래커 갱신 (학습 누적 적용)
-            self.update_frames = getattr(self, 'update_frames', 0) + 1
-            if self.update_frames >= 60:
-                self.update_frames = 0
-                try:
-                    new_tracker = getattr(cv2, 'TrackerCSRT_create')()
-                    new_tracker.init(frame, (x, y, w, h))
-                    self.tracker = new_tracker
-                except Exception:
-                    pass
         
         return {
             "cx": cx, "cy": cy,
@@ -372,7 +352,6 @@ def reset_tracker():
 def _run():
     last_id    = None
     prev_frame = None
-    frame      = None
 
     while True:
         try:
@@ -434,12 +413,12 @@ def _run():
             print(f"[Detector] Exception in _run loop: {e}")
             time.sleep(0.1)
 
-        # ── 자동 모드: 조준점 갱신 (최신 아키텍처 호환) ───────────────────────
+        # ── 자동 모드: 조준점 갱신 ───────────────────────
         if state.control_mode == "auto" and state.ball and frame is not None:
             tx = state.ball.get("predicted_cx", state.ball["cx"])
             ty = state.ball.get("predicted_cy", state.ball["cy"])
             
-            # ESP32 펌웨어 내부에서 T명령을 받아 직접 제어하므로, 
+            # ESP32 펌웨어 내부에서 T명령을 받아 직접 제어하므로,
             # 파이썬 측 P-Controller는 제거하고 타겟의 순수 픽셀 좌표만 state.point에 넘깁니다.
             state.point[0] = int(tx)
             state.point[1] = int(ty)
