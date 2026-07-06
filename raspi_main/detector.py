@@ -153,7 +153,15 @@ class CSRTTracker:
                 fgdModel = np.zeros((1, 65), np.float64)
                 
                 # 사용자가 그린 박스 좌표를 ROI 내부 좌표계로 변환
-                rect = (x1 - gx1, y1 - gy1, w, h)
+                rx, ry, rw, rh = x1 - gx1, y1 - gy1, w, h
+                
+                # OpenCV GrabCut SegFault 방지: rect가 이미지 가장자리에 닿으면 세그멘테이션 오류 발생!
+                if rx + rw >= gw: rw = gw - rx - 1
+                if ry + rh >= gh: rh = gh - ry - 1
+                if rw <= 0 or rh <= 0:
+                    raise ValueError("Invalid GrabCut rect")
+                
+                rect = (rx, ry, rw, rh)
                 
                 # GrabCut 실행 (3번 반복) - rect 바깥은 확실한 배경, 안은 미정(아마 전경)
                 cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 3, cv2.GC_INIT_WITH_RECT)
@@ -203,7 +211,9 @@ class CSRTTracker:
             self.learning = False
             state.learning_failed = False
             state.tracking_mode = "custom"
-            self.learn_zone = (x1, y1, w, h) # UI 썸네일을 위해 존 갱신
+            
+            # learn_zone을 갱신하지 않고 원본 박스를 유지하여,
+            # "더 학습하기(반복학습)" 시 콕이 돌아가서 크기가 커져도 원본 박스 안에서 안전하게 잡히도록 합니다.
             self._save_thumbnail()
             
             # learn_zone 저장
