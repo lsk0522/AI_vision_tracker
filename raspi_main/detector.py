@@ -299,9 +299,9 @@ class CSRTTracker:
                         self._stationary_frames = 0
                         print("[CSRT] Dropped target due to perfectly stationary distractor (e.g. desk/wall).")
 
-            # ── 2. 정밀 트래킹 교정 (Local Template Drift Correction) ──
-            # CSRT가 추적 중일 때, 사용자의 아이디어대로 "저장된 캡처 사진"과 현재 영역을 실시간으로 비교하여
-            # 박스가 물체의 중심에서 살짝 벗어나는 현상(Drift)을 픽셀 단위로 완벽하게 교정합니다.
+            # ── 2. 심각한 추적 오차(가려짐/배경 오인식) 감지 ──
+            # CSRT가 엉뚱한 배경이나 가리는 물체(손 등)를 콕으로 착각하고 쫓아가는 것을 막기 위해,
+            # 현재 추적 중인 영역이 우리가 학습한 사진들과 40% 이상 일치하는지 실시간으로 검사합니다.
             if ok and len(self.templates) > 0:
                 cx, cy, cw, ch = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
                 
@@ -327,15 +327,12 @@ class CSRTTracker:
                                 best_val = max_val
                                 best_loc = max_loc
                                 
-                        # 일치율이 매우 높을 경우(0.75 이상)에만 CSRT의 오차를 교정 (비슷한 색상(배경/옷)에 끌려가지 않도록 방지)
-                        if best_val > 0.75 and best_loc is not None:
-                            corrected_x = x1 + best_loc[0]
-                            corrected_y = y1 + best_loc[1]
-                            bbox = (corrected_x, corrected_y, cw, ch)
-                        # 만약 일치율이 낮다면(0.35 미만), 물체가 화면 밖으로 나갔거나 다른 물체(손 등)에 가려진 것임!
-                        elif best_val < 0.35:
+                        # 조준점 강제 교정 코드 삭제 (CSRT 본연의 형태 추적 능력 유지)
+                        
+                        # 만약 일치율이 낮다면(0.40 미만), 콕이 아니거나 다른 물체에 완전히 가려진 것임!
+                        if best_val < 0.40:
                             ok = False
-                            print(f"[CSRT] Target occluded or left screen (score={best_val:.2f}). Forcing recovery.")
+                            print(f"[CSRT] Target occluded or severe drift (score={best_val:.2f}). Forcing recovery.")
             
             # ── 2. 트래커 완전 실패 시 360도 다각도 템플릿 매칭 전역 복구 ──
             # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
@@ -364,7 +361,7 @@ class CSRTTracker:
                                 best_loc = max_loc
                                 best_tpl = stpl
                 
-                if best_val > 0.42 and best_tpl is not None: # 잃어버렸지만 저장된 각도/크기 중 하나와 형태가 비슷하면
+                if best_val > 0.65 and best_tpl is not None: # 진짜 콕(형태 완벽 일치)일 때만 복구
                     tw, th = best_tpl.shape[1], best_tpl.shape[0]
                     new_bbox = (best_loc[0], best_loc[1], tw, th)
                     self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
