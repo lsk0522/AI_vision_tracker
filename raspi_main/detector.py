@@ -166,8 +166,17 @@ class CSRTTracker:
                 
                 rect = (rx, ry, rw, rh)
                 
-                # GrabCut 실행 (3번 반복) - rect 바깥은 확실한 배경, 안은 미정(아마 전경)
-                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 3, cv2.GC_INIT_WITH_RECT)
+                # GrabCut 1차 실행 (네모칸 기준)
+                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 1, cv2.GC_INIT_WITH_RECT)
+                
+                # ── 사용자 행동 대응: 손으로 가리고 학습할 경우 ──
+                # 사용자가 콕 주변의 다른 물건을 가리기 위해 손을 사용할 경우, 손이 물체로 인식되지 않도록
+                # 피부색 픽셀을 강제로 '확실한 배경(cv2.GC_BGD)'으로 마킹합니다.
+                skin = _skin_mask(grab_roi)
+                mask[skin == 255] = cv2.GC_BGD
+                
+                # 손을 제거한 마스크로 GrabCut 2차 실행 (정밀도 대폭 상승)
+                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 2, cv2.GC_INIT_WITH_MASK)
                 
                 # 확실한 전경(1)이거나 아마 전경(3)인 부분만 1로, 나머진 0으로 마스킹
                 fg_mask = np.where((mask == 1) | (mask == 3), 255, 0).astype('uint8')
