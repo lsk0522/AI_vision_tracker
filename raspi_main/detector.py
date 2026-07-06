@@ -84,7 +84,7 @@ class CSRTTracker:
         self.active = False
         self.learning = False
         self.learn_zone: tuple[int,int,int,int] = (170, 90, 300, 300)  # (x,y,w,h)
-        self.template = None
+        self.templates = [] # 다중 템플릿(360도 학습) 리스트 (최대 5장)
         self._start: float = 0.0
         self.load_saved_data()
 
@@ -191,8 +191,11 @@ class CSRTTracker:
         try:
             self.active = False # 진행 중인 track() 메서드 충돌 방지
             
-            # 전역 템플릿 탐색 복구 및 온라인 학습을 위한 원본 템플릿 저장 (대비 개선된 이미지로 저장)
-            self.template = enhanced_frame[y1:y1+h, x1:x1+w].copy()
+            # 다각도(Multi-Template) 학습: 새로운 각도의 이미지를 누적 저장
+            new_template = enhanced_frame[y1:y1+h, x1:x1+w].copy()
+            self.templates.append(new_template)
+            if len(self.templates) > 5:
+                self.templates.pop(0) # 최신 5개 각도만 유지
             
             self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
             self.tracker.init(enhanced_frame, (x1, y1, w, h))
@@ -248,21 +251,32 @@ class CSRTTracker:
 
         ok, bbox = self.tracker.update(enhanced_frame)
         
-        # ── 트래커 실패 시 템플릿 매칭 복구 ──
-        # 정상 추적 중일 때 매 프레임 전체 탐색을 하면 라즈베리파이에서 프레임 저하(뚝뚝 끊김)가 심각하게 발생하므로,
-        # 트래커가 대상을 완전히 놓쳤을 때(not ok)만 복구를 시도합니다.
-        if not ok and self.template is not None and self.template.shape[0] > 0 and self.template.shape[1] > 0:
-            res = cv2.matchTemplate(enhanced_frame, self.template, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        # ── 트래커 실패 시 360도 다각도 템플릿 매칭 복구 ──
+        # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
+        # 현재 화면에서 가장 비슷한 형태가 있는지 찾아냅니다. (배드민턴 콕 등 3D 회전 물체에 필수)
+        if not ok and len(self.templates) > 0:
+            best_val = 0
+            best_loc = None
+            best_tpl = None
             
-            if max_val > 0.65: # 잃어버렸지만 템플릿과 비슷한 형태를 다시 찾은 경우
-                tw, th = self.template.shape[1], self.template.shape[0]
-                new_bbox = (max_loc[0], max_loc[1], tw, th)
+            # 저장된 모든 각도의 템플릿과 비교
+            for tpl in self.templates:
+                if tpl.shape[0] > 0 and tpl.shape[1] > 0:
+                    res = cv2.matchTemplate(enhanced_frame, tpl, cv2.TM_CCOEFF_NORMED)
+                    _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                    if max_val > best_val:
+                        best_val = max_val
+                        best_loc = max_loc
+                        best_tpl = tpl
+            
+            if best_val > 0.60 and best_tpl is not None: # 잃어버렸지만 저장된 각도 중 하나와 형태가 비슷하면
+                tw, th = best_tpl.shape[1], best_tpl.shape[0]
+                new_bbox = (best_loc[0], best_loc[1], tw, th)
                 self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
                 self.tracker.init(enhanced_frame, new_bbox)
                 bbox = new_bbox
                 ok = True
-                print(f"[CSRT] Recovered via template matching! score={max_val:.2f}")
+                print(f"[CSRT] Recovered via MULTI-TEMPLATE! score={best_val:.2f}, angles={len(self.templates)}")
 
         if not ok:
             return None
@@ -286,6 +300,7 @@ class CSRTTracker:
         self.active = False
         self.learning = False
         self.tracker = None
+        self.templates = []
 
 # ── Hough Circle 폴백 (흰 공 등 원형 물체) ────────────────
 class CircleDetector:
