@@ -77,9 +77,12 @@ class KalmanTracker:
         self.initialized = False
         self.lost = 0
 
+import threading
+
 # ── CSRT 트래커 (최신 AI 트래커) ──────────────────────────
 class CSRTTracker:
     def __init__(self):
+        self.lock = threading.Lock()
         self.tracker = None
         self.active = False
         self.learning = False
@@ -197,20 +200,22 @@ class CSRTTracker:
             # 에러 발생 시 사용자가 그린 원본 박스를 그대로 사용
 
         try:
-            self.active = False # 진행 중인 track() 메서드 충돌 방지
-            
             # 다각도(Multi-Template) 학습: 새로운 각도의 이미지를 누적 저장
             new_template = enhanced_frame[y1:y1+h, x1:x1+w].copy()
             self.templates.append(new_template)
             if len(self.templates) > 5:
                 self.templates.pop(0) # 최신 5개 각도만 유지
             
-            self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
-            self.tracker.init(enhanced_frame, (x1, y1, w, h))
-            self.active = True
-            self.learning = False
-            state.learning_failed = False
-            state.tracking_mode = "custom"
+            new_tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
+            new_tracker.init(enhanced_frame, (x1, y1, w, h))
+            
+            # Thread-safe하게 갱신 (추적 스레드와 충돌 방지)
+            with self.lock:
+                self.tracker = new_tracker
+                self.active = True
+                self.learning = False
+                state.learning_failed = False
+                state.tracking_mode = "custom"
             
             # learn_zone을 갱신하지 않고 원본 박스를 유지하여,
             # "더 학습하기(반복학습)" 시 콕이 돌아가서 크기가 커져도 원본 박스 안에서 안전하게 잡히도록 합니다.
@@ -253,43 +258,44 @@ class CSRTTracker:
                 pass
 
     def track(self, frame, motion=None):
-        if not self.active or self.tracker is None:
-            return None
+        with self.lock:
+            if not self.active or self.tracker is None:
+                return None
 
-        # 밝은 환경 대비 개선 적용
-        enhanced_frame = _enhance_contrast(frame)
+            # 밝은 환경 대비 개선 적용
+            enhanced_frame = _enhance_contrast(frame)
 
-        ok, bbox = self.tracker.update(enhanced_frame)
-        
-        # ── 트래커 실패 시 360도 다각도 템플릿 매칭 복구 ──
-        # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
-        # 현재 화면에서 가장 비슷한 형태가 있는지 찾아냅니다. (배드민턴 콕 등 3D 회전 물체에 필수)
-        if not ok and len(self.templates) > 0:
-            best_val = 0
-            best_loc = None
-            best_tpl = None
+            ok, bbox = self.tracker.update(enhanced_frame)
             
-            # 저장된 모든 각도의 템플릿과 비교
-            for tpl in self.templates:
-                if tpl.shape[0] > 0 and tpl.shape[1] > 0:
-                    res = cv2.matchTemplate(enhanced_frame, tpl, cv2.TM_CCOEFF_NORMED)
-                    _, max_val, _, max_loc = cv2.minMaxLoc(res)
-                    if max_val > best_val:
-                        best_val = max_val
-                        best_loc = max_loc
-                        best_tpl = tpl
-            
-            if best_val > 0.60 and best_tpl is not None: # 잃어버렸지만 저장된 각도 중 하나와 형태가 비슷하면
-                tw, th = best_tpl.shape[1], best_tpl.shape[0]
-                new_bbox = (best_loc[0], best_loc[1], tw, th)
-                self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
-                self.tracker.init(enhanced_frame, new_bbox)
-                bbox = new_bbox
-                ok = True
-                print(f"[CSRT] Recovered via MULTI-TEMPLATE! score={best_val:.2f}, angles={len(self.templates)}")
+            # ── 트래커 실패 시 360도 다각도 템플릿 매칭 복구 ──
+            # 트래커가 대상을 완전히 놓쳤을 때(not ok), 저장된 최대 5개의 모든 각도 이미지를 꺼내어
+            # 현재 화면에서 가장 비슷한 형태가 있는지 찾아냅니다. (배드민턴 콕 등 3D 회전 물체에 필수)
+            if not ok and len(self.templates) > 0:
+                best_val = 0
+                best_loc = None
+                best_tpl = None
+                
+                # 저장된 모든 각도의 템플릿과 비교
+                for tpl in self.templates:
+                    if tpl.shape[0] > 0 and tpl.shape[1] > 0:
+                        res = cv2.matchTemplate(enhanced_frame, tpl, cv2.TM_CCOEFF_NORMED)
+                        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+                        if max_val > best_val:
+                            best_val = max_val
+                            best_loc = max_loc
+                            best_tpl = tpl
+                
+                if best_val > 0.60 and best_tpl is not None: # 잃어버렸지만 저장된 각도 중 하나와 형태가 비슷하면
+                    tw, th = best_tpl.shape[1], best_tpl.shape[0]
+                    new_bbox = (best_loc[0], best_loc[1], tw, th)
+                    self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
+                    self.tracker.init(enhanced_frame, new_bbox)
+                    bbox = new_bbox
+                    ok = True
+                    print(f"[CSRT] Recovered via MULTI-TEMPLATE! score={best_val:.2f}, angles={len(self.templates)}")
 
-        if not ok:
-            return None
+            if not ok:
+                return None
 
         x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
         cx = x + w // 2
@@ -307,10 +313,11 @@ class CSRTTracker:
         }
 
     def reset(self):
-        self.active = False
-        self.learning = False
-        self.tracker = None
-        self.templates = []
+        with self.lock:
+            self.active = False
+            self.learning = False
+            self.tracker = None
+            self.templates = []
 
 # ── Hough Circle 폴백 (흰 공 등 원형 물체) ────────────────
 class CircleDetector:
