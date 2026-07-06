@@ -816,18 +816,15 @@ const btnClearTarget   = document.getElementById("btn-clear-target");
 
 btnSelectTarget.addEventListener("click", () => {
     closeSettingsModal();
+    isRepeatedLearning = false;
     openROISelect();
 });
 
 if (btnAddLearning) {
     btnAddLearning.addEventListener("click", async () => {
         closeSettingsModal();
-        try {
-            await fetch("/add_learning?n=20");
-            _startLearningSession();
-        } catch (e) {
-            console.error("추가 학습 실패", e);
-        }
+        isRepeatedLearning = true;
+        openROISelect();
     });
 }
 
@@ -951,6 +948,8 @@ const targetTypeModal = document.getElementById("target-type-modal");
 const btnTypeBall     = document.getElementById("btn-type-ball");
 const btnTypeOther    = document.getElementById("btn-type-other");
 
+let isRepeatedLearning = false;
+
 btnRoiConfirm.addEventListener("click", async () => {
     if(!_roiRect) return;
     const {x,y,w,h} = _roiRect;
@@ -958,8 +957,14 @@ btnRoiConfirm.addEventListener("click", async () => {
     currentLearnZone = { x, y, w, h };
     closeROISelect();
     
-    // 물체 종류 선택 모달 띄우기
-    targetTypeModal.style.display = "flex";
+    if (isRepeatedLearning) {
+        await fetch('/add_learning?n=20').catch(()=>{});
+        _startLearnPoll();
+        isRepeatedLearning = false;
+    } else {
+        // 물체 종류 선택 모달 띄우기
+        targetTypeModal.style.display = "flex";
+    }
 });
 
 btnTypeBall.addEventListener("click", async () => {
@@ -1024,8 +1029,8 @@ function _showMoreLearnModal(thumbnail) {
 
 btnMoreLearn && btnMoreLearn.addEventListener("click", () => {
     moreLearnModal.style.display = "none";
-    fetch("/add_learning?n=20").catch(()=>{});
-    _startLearnPoll();
+    isRepeatedLearning = true;
+    openROISelect();
 });
 btnFinishLearn && btnFinishLearn.addEventListener("click", () => {
     moreLearnModal.style.display = "none";
