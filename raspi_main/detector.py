@@ -1,4 +1,4 @@
-﻿import cv2
+import cv2
 import os
 import threading
 import numpy as np
@@ -352,7 +352,6 @@ def reset_tracker():
 def _run():
     last_id    = None
     prev_frame = None
-    frame      = None
 
     while True:
         try:
@@ -418,23 +417,11 @@ def _run():
         if state.control_mode == "auto" and state.ball and frame is not None:
             tx = state.ball.get("predicted_cx", state.ball["cx"])
             ty = state.ball.get("predicted_cy", state.ball["cy"])
-            frame_h = frame.shape[0]
-            frame_w = frame.shape[1]
-            center_x = frame_w / 2
-            center_y = frame_h / 2
-            # P-Controller: 현재 모터 좌표(state.point)에서 프레임 중앙 기준 오차만큼 부드럽게 이동
-            err_x = tx - center_x
-            err_y = ty - center_y
             
-            # P-gain 설정 (0.1 ~ 0.5): 높을수록 빨리, 낮을수록 부드럽게
-            p_gain_x = 0.15
-            p_gain_y = 0.10
-            
-            new_x = state.point[0] + (err_x * p_gain_x)
-            new_y = state.point[1] + (err_y * p_gain_y)
-            
-            state.point[0] = max(0, min(frame_w - 1, int(new_x)))
-            state.point[1] = max(0, min(frame_h - 1, int(new_y)))
+            # ESP32 펌웨어 내부에서 T명령을 받아 직접 제어하므로,
+            # 파이썬 측 P-Controller는 제거하고 타겟의 순수 픽셀 좌표만 state.point에 넘깁니다.
+            state.point[0] = int(tx)
+            state.point[1] = int(ty)
 
 def start():
     global _thread
