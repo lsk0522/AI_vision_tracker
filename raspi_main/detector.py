@@ -45,6 +45,63 @@ def _compute_color_hist(img):
     cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
     return hist
 
+# ── YOLOTracker ──────────────────────────────────────────
+class YOLOTracker:
+    def __init__(self, model_path="models/balls.pt"):
+        self.model = None
+        self.active = False
+        try:
+            from ultralytics import YOLO
+            import os
+            if os.path.exists(model_path):
+                self.model = YOLO(model_path, task='detect')
+                self.active = True
+                print(f"[YOLO] Loaded {model_path} successfully!")
+            else:
+                print(f"[YOLO] Model {model_path} not found. YOLO tracking disabled.")
+        except ImportError:
+            print("[YOLO] ultralytics package not installed. YOLO tracking disabled.")
+        except Exception as e:
+            print(f"[YOLO] Error loading model: {e}")
+
+    def track(self, frame):
+        if not self.active or self.model is None:
+            return None
+        
+        results = self.model.predict(source=frame, conf=0.4, verbose=False, device='cpu')
+        
+        if not results or len(results) == 0:
+            return None
+            
+        boxes = results[0].boxes
+        if len(boxes) == 0:
+            return None
+            
+        best_box = None
+        best_conf = -1
+        for box in boxes:
+            conf = float(box.conf[0])
+            if conf > best_conf:
+                best_conf = conf
+                best_box = box
+                
+        if best_box is None:
+            return None
+            
+        x1, y1, x2, y2 = map(int, best_box.xyxy[0].tolist())
+        w = x2 - x1
+        h = y2 - y1
+        cx = x1 + w // 2
+        cy = y1 + h // 2
+        
+        return {
+            "cx": cx, "cy": cy,
+            "x": x1, "y": y1,
+            "w": w, "h": h,
+            "predicted": False,
+            "detector": "yolo"
+        }
+
 # ── 칼만 필터 ────────────────────────────────────────────
 class KalmanTracker:
     def __init__(self):
@@ -505,6 +562,7 @@ class CircleDetector:
 _csrt   = CSRTTracker()
 _circle = CircleDetector()
 _kalman = KalmanTracker()
+_yolo   = YOLOTracker()
 _thread = None
 
 def get_learning_progress():
@@ -549,17 +607,21 @@ def _run():
                 prev_frame = frame.copy()
 
                 if state.target_type == "ball":
-                    # 동그란 공 전용 트래킹 알고리즘: 원형 감지를 최우선으로 사용
-                    ball_obj = _circle.detect(frame, motion)
+                    # YOLO 추적 시도 (최우선)
+                    ball_obj = _yolo.track(frame)
+                    
                     if ball_obj:
                         ball = ball_obj
-                        # 공이 감지되었지만 CSRT가 작동 중이면 (보조용으로) 업데이트만 수행
-                        if _csrt.active:
-                            _csrt.track(frame, motion)
                     else:
-                        # 원형을 못 찾은 경우에만 CSRT 트래커를 보조로 사용
-                        if _csrt.active:
-                            ball = _csrt.track(frame, motion)
+                        # YOLO 실패 시 기존 원형 감지 알고리즘 사용
+                        ball_obj = _circle.detect(frame, motion)
+                        if ball_obj:
+                            ball = ball_obj
+                            if _csrt.active:
+                                _csrt.track(frame, motion)
+                        else:
+                            if _csrt.active:
+                                ball = _csrt.track(frame, motion)
                 else:
                     # 기타 사물 전용 (기존 방식): CSRT 템플릿 매칭을 1순위로 사용
                     if _csrt.active:
@@ -602,8 +664,13 @@ def _run():
             
             # ESP32 펌웨어 내부에서 T명령을 받아 직접 제어하므로,
             # 파이썬 측 P-Controller는 제거하고 타겟의 순수 픽셀 좌표만 state.point에 넘깁니다.
-            state.point[0] = int(tx)
-            state.point[1] = int(ty)
+            if state.ball.get("detector") == "yolo":
+                # 사용자 요청: YOLO 추적 시에는 모터 동작을 하지 않도록 화면 중앙 좌표를 전송하여 모터를 정지시킴
+                state.point[0] = 320
+                state.point[1] = 240
+            else:
+                state.point[0] = int(tx)
+                state.point[1] = int(ty)
 
 def start():
     global _thread

@@ -226,6 +226,15 @@ function drawCrosshair(){
             } else {
                 // 윤곽선 정보가 없을 경우 폴백(네모 박스)
                 ctx.strokeRect(ballState.x, ballState.y, ballState.w, ballState.h);
+                if (ballState.detector === "yolo") {
+                    ctx.save();
+                    ctx.font = "bold 14px -apple-system, sans-serif";
+                    ctx.fillStyle = "#30d158";
+                    ctx.textAlign = "center";
+                    ctx.shadowBlur = 0;
+                    ctx.fillText("🚀 YOLO", ballState.x + ballState.w / 2, ballState.y - 8);
+                    ctx.restore();
+                }
             }
         }
 
