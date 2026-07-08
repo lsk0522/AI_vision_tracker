@@ -228,11 +228,21 @@ function drawCrosshair(){
                 ctx.strokeRect(ballState.x, ballState.y, ballState.w, ballState.h);
                 if (ballState.detector === "yolo") {
                     ctx.save();
+                    const label = ballState.label || "Shuttlecock";
                     ctx.font = "bold 14px -apple-system, sans-serif";
-                    ctx.fillStyle = "#30d158";
-                    ctx.textAlign = "center";
+                    
+                    // 유튜브 YOLO 스타일: 텍스트 뒤에 꽉 찬 색상 배경을 그림
+                    const textWidth = ctx.measureText(label).width;
+                    const paddingX = 6;
+                    const bgHeight = 20;
+                    
+                    ctx.fillStyle = boxColor;
+                    ctx.fillRect(ballState.x, ballState.y - bgHeight, textWidth + paddingX * 2, bgHeight);
+                    
+                    ctx.fillStyle = "#ffffff";
+                    ctx.textAlign = "left";
                     ctx.shadowBlur = 0;
-                    ctx.fillText("🚀 YOLO", ballState.x + ballState.w / 2, ballState.y - 8);
+                    ctx.fillText(label, ballState.x + paddingX, ballState.y - bgHeight + 14);
                     ctx.restore();
                 }
             }

@@ -94,12 +94,16 @@ class YOLOTracker:
         cx = x1 + w // 2
         cy = y1 + h // 2
         
+        cls_id = int(best_box.cls[0])
+        cls_name = self.model.names[cls_id] if self.model else "Shuttlecock"
+        
         return {
             "cx": cx, "cy": cy,
             "x": x1, "y": y1,
             "w": w, "h": h,
             "predicted": False,
-            "detector": "yolo"
+            "detector": "yolo",
+            "label": f"{cls_name} {best_conf:.2f}"
         }
 
 # ── 칼만 필터 ────────────────────────────────────────────
@@ -607,21 +611,8 @@ def _run():
                 prev_frame = frame.copy()
 
                 if state.target_type == "ball":
-                    # YOLO 추적 시도 (최우선)
-                    ball_obj = _yolo.track(frame)
-                    
-                    if ball_obj:
-                        ball = ball_obj
-                    else:
-                        # YOLO 실패 시 기존 원형 감지 알고리즘 사용
-                        ball_obj = _circle.detect(frame, motion)
-                        if ball_obj:
-                            ball = ball_obj
-                            if _csrt.active:
-                                _csrt.track(frame, motion)
-                        else:
-                            if _csrt.active:
-                                ball = _csrt.track(frame, motion)
+                    # 사용자 요청: AI추적 시 무조건 YOLO만 사용 (기존 객체 추적 fallback 완전 제거)
+                    ball = _yolo.track(frame)
                 else:
                     # 기타 사물 전용 (기존 방식): CSRT 템플릿 매칭을 1순위로 사용
                     if _csrt.active:
