@@ -87,4 +87,8 @@ local_ip = get_local_ip()
 print("✔ All systems go!")
 print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
 print("Press Ctrl+C to quit")
-app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+try:
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+except Exception as e:
+    cli_ui.stop_tui()
+    print(f"\n[FATAL ERROR] {e}\n")
