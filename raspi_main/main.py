@@ -83,8 +83,8 @@ detector.start()
 motor_esp32.start()   # ESP32 연결
 motor_arduino.start() # Arduino 연결
 
-    local_ip = get_local_ip()
-    print("✔ All systems go!")
-    print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
-    print("Press Ctrl+C to quit")
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+local_ip = get_local_ip()
+print("✔ All systems go!")
+print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
+print("Press Ctrl+C to quit")
+app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
