@@ -162,9 +162,20 @@ def _run():
                 tx = state.ball.get("predicted_cx", state.ball["cx"])
                 ty = state.ball.get("predicted_cy", state.ball["cy"])
                 
-                # 타겟의 픽셀 좌표를 state.point에 넘겨 ESP32로 전송
-                state.point[0] = int(tx)
-                state.point[1] = int(ty)
+                # 모터 급발진 방지 (Damping & Clamping)
+                err_x = tx - 320
+                err_y = ty - 240
+                
+                # 1. 픽셀 오차를 20%로 줄여서 부드럽게 이동 (P-제어)
+                err_x *= 0.20
+                err_y *= 0.20
+                
+                # 2. 한 번에 너무 큰 값이 들어가는 것을 방지 (최대 30픽셀 오차로 제한)
+                err_x = max(-30, min(30, err_x))
+                err_y = max(-30, min(30, err_y))
+                
+                state.point[0] = int(320 + err_x)
+                state.point[1] = int(240 + err_y)
             else:
                 # 타겟을 놓치면 모터가 폭주하지 않도록 즉시 정지(중앙 좌표)
                 state.point[0] = 320
