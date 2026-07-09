@@ -47,7 +47,7 @@ def _compute_color_hist(img):
 
 # ── YOLOTracker ──────────────────────────────────────────
 class YOLOTracker:
-    def __init__(self, model_path="models/balls.pt"):
+    def __init__(self, model_path="models/best_int8.tflite"):
         self.model = None
         self.active = False
         try:
