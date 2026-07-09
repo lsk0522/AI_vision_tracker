@@ -261,9 +261,17 @@ def _run():
             if ty > 240 and m2_phys <= -22.0 and abs(m1_phys) > 85.0:
                 ty = 240
             # ----------------------------------------------------
+            
+            # ESP32 전송 전, 조이스틱 설정에 맞게 방향 반전 적용
+            final_tx = tx
+            final_ty = ty
+            if getattr(state, 'motor_m1_invert', False):
+                final_tx = 320 - (tx - 320)
+            if getattr(state, 'motor_m2_invert', True):
+                final_ty = 240 - (ty - 240)
 
             if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
-                _send(f"T:{tx}:{ty}\n")
+                _send(f"T:{final_tx}:{final_ty}\n")
                 last_x, last_y = tx, ty
                 last_t_time = now
 
