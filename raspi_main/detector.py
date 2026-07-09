@@ -1,110 +1,10 @@
 import cv2
-import os
+import time
 import threading
 import numpy as np
-import time
+from ultralytics import YOLO
 
 import state
-
-# 학습 영역: 640x480 프레임 중앙 300x300
-_DEFAULT_LEARN_ZONE = (170, 90, 300, 300)   # (x, y, w, h)
-
-# ── 헬퍼: 피부색 마스크 (YCrCb — 조명 변화에 강함) ──────
-def _skin_mask(img):
-    """피부색 픽셀 = 255, 그 외 = 0. 손을 제거하기 위해 사용."""
-    ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
-    mask = cv2.inRange(ycrcb, np.array((0, 133, 77), dtype=np.uint8), np.array((255, 173, 127), dtype=np.uint8))
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-    return cv2.dilate(mask, kernel, iterations=2)   # 여유 있게 확장
-
-# ── 헬퍼: 프레임 차분 모션 마스크 ────────────────────────
-def _motion_mask(frame, prev_frame):
-    diff = cv2.absdiff(
-        cv2.cvtColor(frame,      cv2.COLOR_BGR2GRAY),
-        cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY),
-    )
-    _, mask = cv2.threshold(diff, 15, 255, cv2.THRESH_BINARY)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-    return cv2.dilate(mask, kernel, iterations=2)
-
-# ── 헬퍼: 밝은 환경 대비 개선 (CLAHE) ────────────────────
-def _enhance_contrast(frame):
-    """밝은 환경이나 역광에서 객체 인식률을 높이기 위해 대비를 극대화합니다."""
-    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    cl = clahe.apply(l)
-    return cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
-
-# ── 헬퍼: 색상 분포(히스토그램) 계산 ─────────────────────
-def _compute_color_hist(img):
-    """물체의 색상(Hue)과 채도(Saturation) 특징을 수치화하여 추출합니다."""
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    # H: 0~180, S: 0~256
-    hist = cv2.calcHist([hsv], [0, 1], None, [30, 32], [0, 180, 0, 256])
-    cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-    return hist
-
-# ── YOLOTracker ──────────────────────────────────────────
-class YOLOTracker:
-    def __init__(self, model_path="models/best_int8.tflite"):
-        self.model = None
-        self.active = False
-        try:
-            from ultralytics import YOLO
-            import os
-            if os.path.exists(model_path):
-                self.model = YOLO(model_path, task='detect')
-                self.active = True
-                print(f"[YOLO] Loaded {model_path} successfully!")
-            else:
-                print(f"[YOLO] Model {model_path} not found. YOLO tracking disabled.")
-        except ImportError:
-            print("[YOLO] ultralytics package not installed. YOLO tracking disabled.")
-        except Exception as e:
-            print(f"[YOLO] Error loading model: {e}")
-
-    def track(self, frame):
-        if not self.active or self.model is None:
-            return None
-        
-        results = self.model.predict(source=frame, conf=0.4, verbose=False, device='cpu')
-        
-        if not results or len(results) == 0:
-            return None
-            
-        boxes = results[0].boxes
-        if len(boxes) == 0:
-            return None
-            
-        best_box = None
-        best_conf = -1
-        for box in boxes:
-            conf = float(box.conf[0])
-            if conf > best_conf:
-                best_conf = conf
-                best_box = box
-                
-        if best_box is None:
-            return None
-            
-        x1, y1, x2, y2 = map(int, best_box.xyxy[0].tolist())
-        w = x2 - x1
-        h = y2 - y1
-        cx = x1 + w // 2
-        cy = y1 + h // 2
-        
-        cls_id = int(best_box.cls[0])
-        cls_name = self.model.names[cls_id] if self.model else "Shuttlecock"
-        
-        return {
-            "cx": cx, "cy": cy,
-            "x": x1, "y": y1,
-            "w": w, "h": h,
-            "predicted": False,
-            "detector": "yolo",
-            "label": f"{cls_name} {best_conf:.2f}"
-        }
 
 # ── 칼만 필터 ────────────────────────────────────────────
 class KalmanTracker:
@@ -120,7 +20,7 @@ class KalmanTracker:
         self.kf.errorCovPost        = np.eye(4, dtype=np.float32) * 10.0
         self.initialized = False
         self.lost = 0
-        self.MAX_LOST = 60  # 물체가 화면을 벗어나거나 가려졌을 때 관성으로 예측하는 프레임 수 (약 2초)
+        self.MAX_LOST = 20
 
     def update(self, cx, cy):
         m = np.array([[np.float32(cx)], [np.float32(cy)]])
@@ -147,433 +47,61 @@ class KalmanTracker:
         self.initialized = False
         self.lost = 0
 
-import threading
 
-# ── CSRT 트래커 (최신 AI 트래커) ──────────────────────────
-class CSRTTracker:
+# ── YOLO 트래커 (단독 AI) ──────────────────────────────────
+class YOLOTracker:
     def __init__(self):
-        self.lock = threading.Lock()
-        self.tracker = None
+        self.model = YOLO('best_int8.tflite', task='detect')
         self.active = False
-        self.learning = False
-        self.learn_zone: tuple[int,int,int,int] = (170, 90, 300, 300)  # (x,y,w,h)
-        self.templates = [] # 다중 템플릿(360도 학습) 리스트 (최대 5장)
-        self._start: float = 0.0
-        self._stationary_frames = 0
-        self.learned_contour = None # 학습된 객체의 폴리곤 윤곽선
-        self.load_saved_data()
-
-    @property
-    def progress(self):
-        # 학습 모달을 즉시 완료시키기 위해 100 반환
-        return 100
-
-    def load_saved_data(self):
-        import os
-        folder = "learning_data"
-        zone_path = os.path.join(folder, "learn_zone.txt")
-        if os.path.exists(zone_path):
-            try:
-                with open(zone_path, "r") as f:
-                    coords = [int(v) for v in f.read().strip().split(",")]
-                    if len(coords) == 4:
-                        self.learn_zone = (coords[0], coords[1], coords[2], coords[3])
-            except Exception as e:
-                pass
-
-    def start_learning(self, n_samples=20):
-        # 15초 학습 과정을 생략하고 즉시 트래커 초기화
-        import state
-        frame = state.current_frame
-        if frame is None:
-            state.learning_failed = True
-            return
-
-        x, y, w, h = self.learn_zone
-        img_h, img_w = frame.shape[0], frame.shape[1]
-        x1 = max(0, min(img_w - 1, x))
-        y1 = max(0, min(img_h - 1, y))
-        x2 = max(0, min(img_w, x + w))
-        y2 = max(0, min(img_h, y + h))
-        w = x2 - x1
-        h = y2 - y1
-
-        if w <= 0 or h <= 0:
-            state.learning_failed = True
-            return
-
-        # 밝은 환경 대비 개선
-        enhanced_frame = _enhance_contrast(frame)
         
-        # ── GrabCut을 이용한 지능형 배경 제거 및 BBox 정밀 보정 ──
-        # 사용자가 대충 친 박스(x1, y1, w, h) 주변의 배경(칠판, TV 등)을 AI로 싹둑 잘라내고,
-        # 물체 본체에만 딱 맞는 정밀한 박스로 줄여서 CSRT 트래커가 배경에 속지 않게 만듭니다.
-        try:
-            # GrabCut은 연산이 무거우므로 ROI를 확장한 영역 안에서만 수행
-            pad = 60 # 패딩을 60으로 늘려 배경(칠판 등)의 색상 정보를 충분히 학습하게 함
-            gx1 = max(0, x1 - pad)
-            gy1 = max(0, y1 - pad)
-            gx2 = min(img_w, x2 + pad)
-            gy2 = min(img_h, y2 + pad)
-            gw = gx2 - gx1
-            gh = gy2 - gy1
-            
-            # 박스가 너무 작으면 GrabCut 생략
-            if gw > 30 and gh > 30:
-                grab_roi = enhanced_frame[gy1:gy2, gx1:gx2].copy()
-                
-                # GrabCut을 위한 초기 마스크 및 임시 배열 할당
-                mask = np.zeros(grab_roi.shape[:2], np.uint8)
-                bgdModel = np.zeros((1, 65), np.float64)
-                fgdModel = np.zeros((1, 65), np.float64)
-                
-                # 사용자가 그린 박스 좌표를 ROI 내부 좌표계로 변환
-                rx, ry, rw, rh = x1 - gx1, y1 - gy1, w, h
-                
-                # OpenCV GrabCut SegFault 방지: rect가 이미지 가장자리에 닿으면 세그멘테이션 오류 발생!
-                if rx + rw >= gw: rw = gw - rx - 1
-                if ry + rh >= gh: rh = gh - ry - 1
-                if rw <= 0 or rh <= 0:
-                    raise ValueError("Invalid GrabCut rect")
-                
-                rect = (rx, ry, rw, rh)
-                
-                # GrabCut 1차 실행 (네모칸 기준)
-                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 1, cv2.GC_INIT_WITH_RECT)
-                
-                # ── 사용자 행동 대응 및 핵심 물체 강조 ──
-                # 1. 피부색 픽셀을 강제로 '확실한 배경(cv2.GC_BGD)'으로 마킹하여 손가락을 날립니다.
-                skin = _skin_mask(grab_roi)
-                mask[skin == 255] = cv2.GC_BGD
-                
-                # 2. 박스 정중앙(핵심 물체 위치)은 확실한 전경(cv2.GC_FGD)으로 강제 지정합니다.
-                cx_box = rx + rw // 2
-                cy_box = ry + rh // 2
-                fw = max(2, rw // 10)
-                fh = max(2, rh // 10)
-                
-                # SegFault 방지: 인덱스 범위 초과 방지
-                y_start, y_end = max(0, cy_box - fh), min(gh, cy_box + fh)
-                x_start, x_end = max(0, cx_box - fw), min(gw, cx_box + fw)
-                mask[y_start:y_end, x_start:x_end] = cv2.GC_FGD
-                
-                # 3. 손을 제거하고 중앙을 강조한 마스크로 GrabCut 3회 반복 실행 (초정밀화)
-                cv2.grabCut(grab_roi, mask, rect, bgdModel, fgdModel, 3, cv2.GC_INIT_WITH_MASK)
-                
-                # 확실한 전경(1)이거나 아마 전경(3)인 부분만 1로, 나머진 0으로 마스킹
-                fg_mask = np.where((mask == 1) | (mask == 3), 255, 0).astype('uint8')
-                
-                # 노이즈 제거를 위한 모폴로지 연산
-                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-                fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
-                
-                # 살아남은 전경 픽셀의 가장 큰 덩어리를 찾음
-                contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                if contours:
-                    largest = max(contours, key=cv2.contourArea)
-                    rx, ry, rw, rh = cv2.boundingRect(largest)
-                    
-                    # 윤곽선 단순화 및 정규화 (UI 렌더링용)
-                    epsilon = 0.015 * cv2.arcLength(largest, True)
-                    approx = cv2.approxPolyDP(largest, epsilon, True)
-                    if rw > 0 and rh > 0:
-                        self.learned_contour = []
-                        for pt in approx:
-                            px, py = pt[0]
-                            self.learned_contour.append([float(px - rx) / rw, float(py - ry) / rh])
-                    
-                    # 전경이 노이즈 수준이 아니라면 박스 갱신
-                    if rw > 20 and rh > 20:
-                        x1 = gx1 + rx
-                        y1 = gy1 + ry
-                        w = rw
-                        h = rh
-                        # 박스가 화면을 넘지 않도록 재검증
-                        x1 = max(0, min(img_w - 1, x1))
-                        y1 = max(0, min(img_h - 1, y1))
-                        x2 = max(0, min(img_w, x1 + w))
-                        y2 = max(0, min(img_h, y1 + h))
-                        w = x2 - x1
-                        h = y2 - y1
-        except Exception as e:
-            print(f"[GrabCut] Error during background removal: {e}")
-            # 에러 발생 시 사용자가 그린 원본 박스를 그대로 사용
-
-        try:
-            # 다각도(Multi-Template) 학습: 새로운 각도의 이미지와 색상 분포(히스토그램)를 누적 저장
-            new_template = enhanced_frame[y1:y1+h, x1:x1+w].copy()
-            new_hist = _compute_color_hist(new_template)
-            
-            self.templates.append({
-                "img": new_template,
-                "hist": new_hist
-            })
-            
-            if len(self.templates) > 5:
-                self.templates.pop(0) # 최신 5개 각도만 유지
-            
-            new_tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
-            new_tracker.init(enhanced_frame, (x1, y1, w, h))
-            
-            # Thread-safe하게 갱신 (추적 스레드와 충돌 방지)
-            with self.lock:
-                self.tracker = new_tracker
-                self.active = True
-                self.learning = False
-                state.learning_failed = False
-                state.tracking_mode = "custom"
-            
-            # learn_zone을 갱신하지 않고 원본 박스를 유지하여,
-            # "더 학습하기(반복학습)" 시 콕이 돌아가서 크기가 커져도 원본 박스 안에서 안전하게 잡히도록 합니다.
-            self._save_thumbnail()
-            
-            # learn_zone 저장
-            import os
-            os.makedirs("learning_data", exist_ok=True)
-            with open("learning_data/learn_zone.txt", "w") as f:
-                f.write(f"{self.learn_zone[0]},{self.learn_zone[1]},{self.learn_zone[2]},{self.learn_zone[3]}")
-                
-        except Exception as e:
-            print(f"[CSRTTracker] Error init: {e}")
-            state.learning_failed = True
-            self.active = False
-
-    def process_frame(self, frame, prev_frame=None):
-        pass
-
-    def _finish(self):
-        pass
-
-    def _save_thumbnail(self):
-        frame = state.current_frame
-        if frame is None:
-            return
-        x, y, w, h = self.learn_zone
-        img_h, img_w = frame.shape[0], frame.shape[1]
-        x1 = max(0, min(img_w - 1, x))
-        y1 = max(0, min(img_h - 1, y))
-        x2 = max(0, min(img_w, x + w))
-        y2 = max(0, min(img_h, y + h))
-        if x2 > x1 and y2 > y1:
-            roi = frame[y1:y2, x1:x2]
-            import os
-            os.makedirs("learning_data", exist_ok=True)
-            try:
-                cv2.imwrite("learning_data/target_thumbnail.jpg", roi, [cv2.IMWRITE_JPEG_QUALITY, 82])
-            except Exception:
-                pass
-
-    def track(self, frame, motion=None):
-        with self.lock:
-            if not self.active or self.tracker is None:
-                return None
-
-            # 밝은 환경 대비 개선 적용
-            enhanced_frame = _enhance_contrast(frame)
-
-            ok, bbox = self.tracker.update(enhanced_frame)
-            
-            # ── 1. 정지된 배경(책상, 칠판 등) 오인식 완벽 차단 ──
-            # 비슷한 색상(형광색)의 책상이나 벽을 물체로 착각하여 추적하는 것을 막기 위해,
-            # 현재 추적 중인 박스 영역에 '움직임'이 전혀 없다면 가짜(배경)로 판별하고 즉시 추적을 포기합니다.
-            if ok and motion is not None:
-                mx1 = max(0, int(bbox[0]))
-                my1 = max(0, int(bbox[1]))
-                mx2 = min(motion.shape[1], int(bbox[0] + bbox[2]))
-                my2 = min(motion.shape[0], int(bbox[1] + bbox[3]))
-                if mx2 > mx1 and my2 > my1:
-                    motion_roi = motion[my1:my2, mx1:mx2]
-                    # 움직이는 픽셀이 거의 없다면 (10개 미만)
-                    if cv2.countNonZero(motion_roi) < 10:
-                        self._stationary_frames += 1
-                    else:
-                        self._stationary_frames = 0
-                        
-                    # 5프레임(약 0.15초) 연속으로 정지 상태면 가짜 배경으로 판단하고 쳐냄!
-                    if self._stationary_frames > 5:
-                        ok = False
-                        self._stationary_frames = 0
-                        print("[CSRT] Dropped target due to perfectly stationary distractor (e.g. desk/wall).")
-
-            # ── 2. 심각한 추적 오차(가려짐/배경 오인식) 감지 ──
-            # CSRT가 엉뚱한 배경이나 가리는 물체(손 등)를 콕으로 착각하고 쫓아가는 것을 막기 위해,
-            # 현재 추적 중인 영역이 우리가 학습한 사진들과 40% 이상 일치하는지 실시간으로 검사합니다.
-            if ok and len(self.templates) > 0:
-                cx, cy, cw, ch = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-                
-                if cw > 10 and ch > 10:
-                    pad = int(max(cw, ch) * 0.3) # 30% 주변 여유 공간 탐색
-                    x1 = max(0, cx - pad)
-                    y1 = max(0, cy - pad)
-                    x2 = min(enhanced_frame.shape[1], cx + cw + pad)
-                    y2 = min(enhanced_frame.shape[0], cy + ch + pad)
-                    
-                    roi = enhanced_frame[y1:y2, x1:x2]
-                    
-                    if roi.shape[0] >= ch and roi.shape[1] >= cw:
-                        best_val = 0
-                        best_loc = None
-                        
-                        # 현재 추정된 물체 크기(cw, ch)에 맞춰 저장된 사진들을 변환 후 정밀 비교
-                        for tpl_data in self.templates:
-                            tpl_img = tpl_data["img"]
-                            stpl = cv2.resize(tpl_img, (cw, ch))
-                            res = cv2.matchTemplate(roi, stpl, cv2.TM_CCOEFF_NORMED)
-                            _, max_val, _, max_loc = cv2.minMaxLoc(res)
-                            if max_val > best_val:
-                                best_val = max_val
-                                best_loc = max_loc
-                                
-                        # 조준점 강제 교정 코드 삭제 (CSRT 본연의 형태 추적 능력 유지)
-                        
-                        # 만약 일치율이 낮다면(0.40 미만), 콕이 아니거나 다른 물체에 완전히 가려진 것임!
-                        if best_val < 0.40:
-                            ok = False
-                            print(f"[CSRT] Target occluded or severe drift (score={best_val:.2f}). Forcing recovery.")
-            
-            # ── 3. 2단계 정밀 전역 복구 (Shape + Color Multi-Feature Fusion) ──
-            # 트래커가 대상을 완전히 놓쳤을 때(not ok), 화면 전체를 스캔하여 물체를 다시 찾아냅니다.
-            if not ok and len(self.templates) > 0:
-                best_total_score = 0
-                best_loc = None
-                best_tpl_img = None
-                
-                # 저장된 모든 각도의 템플릿(사진+색상)과 비교
-                for tpl_data in self.templates:
-                    tpl_img = tpl_data["img"]
-                    tpl_hist = tpl_data["hist"]
-                    
-                    if tpl_img.shape[0] > 0 and tpl_img.shape[1] > 0:
-                        for scale in (0.8, 1.0, 1.25):
-                            stw = int(tpl_img.shape[1] * scale)
-                            sth = int(tpl_img.shape[0] * scale)
-                            if stw < 15 or sth < 15 or stw >= enhanced_frame.shape[1] or sth >= enhanced_frame.shape[0]:
-                                continue
-                            
-                            stpl = cv2.resize(tpl_img, (stw, sth))
-                            
-                            # [1차] 형태 검증 (Shape Matching)
-                            res = cv2.matchTemplate(enhanced_frame, stpl, cv2.TM_CCOEFF_NORMED)
-                            _, shape_score, _, max_loc = cv2.minMaxLoc(res)
-                            
-                            # 형태가 50% 이상 일치할 때만 2차 검증 진행 (속도 최적화 및 엉뚱한 배경 필터링)
-                            if shape_score > 0.50:
-                                tx, ty = max_loc
-                                roi = enhanced_frame[ty:ty+sth, tx:tx+stw]
-                                
-                                # [2차] 색상 검증 (Color Histogram Matching)
-                                roi_hist = _compute_color_hist(roi)
-                                color_score = cv2.compareHist(tpl_hist, roi_hist, cv2.HISTCMP_CORREL)
-                                color_score = max(0, color_score) # 음수 점수 방지
-                                
-                                # [최종] 종합 점수 산출 (형태 60% + 색상 40%)
-                                total_score = (shape_score * 0.6) + (color_score * 0.4)
-                                
-                                if total_score > best_total_score:
-                                    best_total_score = total_score
-                                    best_loc = max_loc
-                                    best_tpl_img = stpl
-                
-                # 종합 점수가 60% 이상일 때만 복구 (진짜 콕임이 형태와 색상 모두로 교차 검증됨)
-                if best_total_score > 0.60 and best_tpl_img is not None:
-                    tw, th = best_tpl_img.shape[1], best_tpl_img.shape[0]
-                    new_bbox = (best_loc[0], best_loc[1], tw, th)
-                    self.tracker = getattr(cv2, 'TrackerCSRT_create')()  # type: ignore
-                    self.tracker.init(enhanced_frame, new_bbox)
-                    bbox = new_bbox
-                    ok = True
-                    print(f"[CSRT] Recovered via MULTI-TEMPLATE! score={best_val:.2f}, angles={len(self.templates)}")
-
-            if not ok:
-                return None
-
-        x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-        cx = x + w // 2
-        cy = y + h // 2
+    def start_tracking(self):
+        self.active = True
         
-        # 바운딩 박스 화면 이탈 방지
-        frame_h, frame_w = frame.shape[:2]
-        x = max(0, min(frame_w - 1, x))
-        y = max(0, min(frame_h - 1, y))
+    def stop_tracking(self):
+        self.active = False
         
-        return {
-            "cx": cx, "cy": cy,
-            "x": x, "y": y, "w": w, "h": h,
-            "matches": 100, "predicted": False,
-            "contour": getattr(self, 'learned_contour', None)
-        }
-
-    def reset(self):
-        with self.lock:
-            self.active = False
-            self.learning = False
-            self.tracker = None
-            self.templates = []
-            self._stationary_frames = 0
-            self.learned_contour = None
-
-# ── Hough Circle 폴백 (흰 공 등 원형 물체) ────────────────
-class CircleDetector:
-    """ORB 실패 시 폴백. 형태만 보므로 흰 공 ↔ 흰 배경도 감지 가능."""
-
-    def detect(self, frame, motion=None):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # 모션 영역만 사용 (배경 원형 노이즈 방지)
-        search = gray
-        if motion is not None and cv2.countNonZero(motion) > 200:
-            search = cv2.bitwise_and(gray, gray, mask=motion)
-
-        blurred = cv2.GaussianBlur(search, (9, 9), 2)
-
-        circles = cv2.HoughCircles(
-            blurred,
-            cv2.HOUGH_GRADIENT,
-            dp=1, minDist=40,
-            param1=60, param2=18,
-            minRadius=12, maxRadius=130,
-        )
-        if circles is None:
+    def track(self, frame):
+        if not self.active:
             return None
-
-        circles = np.round(circles[0]).astype(int)
-
-        # 피부색 중심 원 제외 (손가락 끝 등)
-        skin = _skin_mask(frame)
-        best = None
-        best_r = 0
-        for cx, cy, r in circles:
-            if 0 <= cy < frame.shape[0] and 0 <= cx < frame.shape[1]:
-                if skin[cy, cx]:      # 중심이 피부색 → 손 가능성, 스킵
-                    continue
-                if r > best_r:
-                    best_r = r
-                    best = (cx, cy, r)
-
-        if best is None:
-            return None
-
-        cx, cy, r = best
-        return {
-            "cx": int(cx), "cy": int(cy),
-            "x": int(cx - r), "y": int(cy - r),
-            "w": int(2 * r), "h": int(2 * r),
-            "predicted": False,
-            "detector": "hough",
-        }
+            
+        results = self.model(frame, verbose=False, conf=0.25)
+        
+        if len(results) > 0 and len(results[0].boxes) > 0:
+            boxes = results[0].boxes
+            best_box = None
+            max_conf = -1
+            
+            for box in boxes:
+                conf = float(box.conf[0])
+                if conf > max_conf:
+                    max_conf = conf
+                    best_box = box
+                    
+            if best_box is not None:
+                x1, y1, x2, y2 = map(int, best_box.xyxy[0])
+                w = x2 - x1
+                h = y2 - y1
+                cx = x1 + w // 2
+                cy = y1 + h // 2
+                
+                return {
+                    "cx": cx, "cy": cy,
+                    "x": x1, "y": y1, "w": w, "h": h,
+                    "conf": max_conf,
+                    "predicted": False,
+                    "detector": "yolo"
+                }
+        return None
 
 # ── 모듈 인스턴스 ────────────────────────────────────────
-_csrt   = CSRTTracker()
-_circle = CircleDetector()
+_yolo = YOLOTracker()
 _kalman = KalmanTracker()
-_yolo   = YOLOTracker()
 _thread = None
 
 def get_learning_progress():
-    return _csrt.progress
+    return 100
 
 def reset_tracker():
-    _csrt.reset()
     _kalman.reset()
     state.ball = None
     state.ball_lost = False
@@ -581,8 +109,7 @@ def reset_tracker():
 
 # ── 메인 루프 ────────────────────────────────────────────
 def _run():
-    last_id    = None
-    prev_frame = None
+    last_id = None
 
     while True:
         try:
@@ -590,10 +117,6 @@ def _run():
             if frame is None:
                 time.sleep(0.01)
                 continue
-
-            # ── 학습 중 (CSRT에서는 즉시 완료됨) ─────────────────────────────────────
-            if _csrt.learning:
-                pass
 
             frame_id = id(frame)
             if frame_id == last_id:
@@ -603,28 +126,13 @@ def _run():
 
             # ── 추적 ────────────────────────────────────────
             ball = None
-            motion = None
 
-            # 수동 모드일 때는 무거운 모션 마스크 및 트래킹을 생략 (단, 학습 중이 아닐 때)
-            if state.control_mode == 'auto' or _csrt.learning:
-                motion = _motion_mask(frame, prev_frame) if prev_frame is not None else None
-                prev_frame = frame.copy()
-
-                if state.target_type == "ball":
-                    # 사용자 요청: AI추적 시 무조건 YOLO만 사용 (기존 객체 추적 fallback 완전 제거)
-                    ball = _yolo.track(frame)
-                else:
-                    # 기타 사물 전용 (기존 방식): CSRT 템플릿 매칭을 1순위로 사용
-                    if _csrt.active:
-                        ball = _csrt.track(frame, motion)
-                    
-                    # CSRT 실패 시 보조 수단으로 원형 감지 시도 (원래 v1.0.0 로직)
-                    if ball is None and motion is not None:
-                        ball = _circle.detect(frame, motion)
+            if state.control_mode == 'auto':
+                _yolo.start_tracking()
+                ball = _yolo.track(frame)
             else:
-                # 수동 모드 최적화: prev_frame만 최소한으로 유지
-                if prev_frame is None:
-                    prev_frame = frame.copy()
+                _yolo.stop_tracking()
+                ball = None
 
             # ── 칼만 갱신 ────────────────────────────────────
             if ball:
@@ -633,11 +141,11 @@ def _run():
                 ball["predicted_cy"] = py
                 state.ball      = ball
                 state.ball_lost = False
-            elif _csrt.active:
+            elif state.control_mode == 'auto':
                 pred = _kalman.predict_next()
                 state.ball_lost = True
                 state.ball = (
-                    {"cx": pred[0], "cy": pred[1], "predicted": True}
+                    {"cx": pred[0], "cy": pred[1], "predicted": True, "detector": "kalman"}
                     if pred else None
                 )
             else:
@@ -648,20 +156,11 @@ def _run():
             print(f"[Detector] Exception in _run loop: {e}")
             time.sleep(0.1)
 
-        # ── 자동 모드: 조준점 갱신 ───────────────────────
-        if state.control_mode == "auto" and state.ball and frame is not None:
-            tx = state.ball.get("predicted_cx", state.ball["cx"])
-            ty = state.ball.get("predicted_cy", state.ball["cy"])
-            
-            # ESP32 펌웨어 내부에서 T명령을 받아 직접 제어하므로,
-            # 파이썬 측 P-Controller는 제거하고 타겟의 순수 픽셀 좌표만 state.point에 넘깁니다.
-            if state.ball.get("detector") == "yolo":
-                # 사용자 요청: YOLO 추적 시에는 모터 동작을 하지 않도록 화면 중앙 좌표를 전송하여 모터를 정지시킴
-                state.point[0] = 320
-                state.point[1] = 240
-            else:
-                state.point[0] = int(tx)
-                state.point[1] = int(ty)
+        # ── 자동 모드: 조준점 고정 (조이스틱/모터 보호) ──
+        if state.control_mode == "auto":
+            # 무조건 화면 정중앙 좌표로 고정시켜 모터가 임의로 움직이지 않도록 함
+            state.point[0] = 320
+            state.point[1] = 240
 
 def start():
     global _thread
@@ -669,14 +168,10 @@ def start():
     _thread.start()
 
 def set_learn_zone(x, y, w, h):
-    _csrt.learn_zone = (int(x), int(y), int(w), int(h))
+    pass
 
 def get_learn_zone():
-    return getattr(_csrt, 'learn_zone', _DEFAULT_LEARN_ZONE)
+    return (170, 90, 300, 300)
 
 def start_learning(n_samples=20):
-    _csrt.start_learning()
-    _kalman.reset()
-    state.ball = None
-    state.ball_lost = False
-    state.learning_progress = 0
+    pass

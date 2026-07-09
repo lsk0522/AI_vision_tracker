@@ -99,7 +99,7 @@ function drawCrosshair(){
     // 학습 모드 중이거나 ROI 영역을 선택하고 있을 때는 조준점(도트·링·브래킷) 전부 숨김
     const roiOverlayEl = document.getElementById("roi-select-overlay");
     const isROIOpen = roiOverlayEl && (roiOverlayEl.style.display === "block");
-    if (!learningMode && !isROIOpen) {
+    if (!learningMode && !isROIOpen && controlMode !== "auto") {
 
         // ── 중심 도트 ──────────────────────────
         ctx.shadowBlur  = 10;
@@ -212,40 +212,8 @@ function drawCrosshair(){
         ctx.lineWidth = 2;
 
         if (!lost && ballState.x !== undefined) {
-            if (ballState.contour && ballState.contour.length > 0) {
-                // 객체의 실제 윤곽선(다각형) 그리기
-                ctx.beginPath();
-                ballState.contour.forEach((pt, i) => {
-                    const px = ballState.x + pt[0] * ballState.w;
-                    const py = ballState.y + pt[1] * ballState.h;
-                    if (i === 0) ctx.moveTo(px, py);
-                    else ctx.lineTo(px, py);
-                });
-                ctx.closePath();
-                ctx.stroke();
-            } else {
-                // 윤곽선 정보가 없을 경우 폴백(네모 박스)
-                ctx.strokeRect(ballState.x, ballState.y, ballState.w, ballState.h);
-                if (ballState.detector === "yolo") {
-                    ctx.save();
-                    const label = ballState.label || "Shuttlecock";
-                    ctx.font = "bold 14px -apple-system, sans-serif";
-                    
-                    // 유튜브 YOLO 스타일: 텍스트 뒤에 꽉 찬 색상 배경을 그림
-                    const textWidth = ctx.measureText(label).width;
-                    const paddingX = 6;
-                    const bgHeight = 20;
-                    
-                    ctx.fillStyle = boxColor;
-                    ctx.fillRect(ballState.x, ballState.y - bgHeight, textWidth + paddingX * 2, bgHeight);
-                    
-                    ctx.fillStyle = "#ffffff";
-                    ctx.textAlign = "left";
-                    ctx.shadowBlur = 0;
-                    ctx.fillText(label, ballState.x + paddingX, ballState.y - bgHeight + 14);
-                    ctx.restore();
-                }
-            }
+            // 실제 검출 박스
+            ctx.strokeRect(ballState.x, ballState.y, ballState.w, ballState.h);
         }
 
         // 칼만 예측 위치 (작은 십자선)
@@ -848,15 +816,18 @@ const btnClearTarget   = document.getElementById("btn-clear-target");
 
 btnSelectTarget.addEventListener("click", () => {
     closeSettingsModal();
-    isRepeatedLearning = false;
     openROISelect();
 });
 
 if (btnAddLearning) {
     btnAddLearning.addEventListener("click", async () => {
         closeSettingsModal();
-        isRepeatedLearning = true;
-        openROISelect();
+        try {
+            await fetch("/add_learning?n=20");
+            _startLearningSession();
+        } catch (e) {
+            console.error("추가 학습 실패", e);
+        }
     });
 }
 
@@ -975,39 +946,12 @@ roiOverlay.addEventListener("touchmove",  e => { e.preventDefault(); const t=e.t
 roiOverlay.addEventListener("touchend",   e => { const t=e.changedTouches[0]; _roiPointerUp(t.clientX,t.clientY); });
 
 btnRoiCancel.addEventListener("click", closeROISelect);
-
-const targetTypeModal = document.getElementById("target-type-modal");
-const btnTypeBall     = document.getElementById("btn-type-ball");
-const btnTypeOther    = document.getElementById("btn-type-other");
-
-let isRepeatedLearning = false;
-
 btnRoiConfirm.addEventListener("click", async () => {
     if(!_roiRect) return;
     const {x,y,w,h} = _roiRect;
     await fetch(`/set_learn_zone?x=${x}&y=${y}&w=${w}&h=${h}`).catch(()=>{});
     currentLearnZone = { x, y, w, h };
     closeROISelect();
-    
-    if (isRepeatedLearning) {
-        await fetch('/add_learning?n=20').catch(()=>{});
-        _startLearnPoll();
-        isRepeatedLearning = false;
-    } else {
-        // 물체 종류 선택 모달 띄우기
-        targetTypeModal.style.display = "flex";
-    }
-});
-
-btnTypeBall.addEventListener("click", async () => {
-    targetTypeModal.style.display = "none";
-    await fetch('/set_target_type?type=ball').catch(()=>{});
-    _startLearningSession();
-});
-
-btnTypeOther.addEventListener("click", async () => {
-    targetTypeModal.style.display = "none";
-    await fetch('/set_target_type?type=other').catch(()=>{});
     _startLearningSession();
 });
 
@@ -1061,8 +1005,8 @@ function _showMoreLearnModal(thumbnail) {
 
 btnMoreLearn && btnMoreLearn.addEventListener("click", () => {
     moreLearnModal.style.display = "none";
-    isRepeatedLearning = true;
-    openROISelect();
+    fetch("/add_learning?n=20").catch(()=>{});
+    _startLearnPoll();
 });
 btnFinishLearn && btnFinishLearn.addEventListener("click", () => {
     moreLearnModal.style.display = "none";

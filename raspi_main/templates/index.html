@@ -146,23 +146,6 @@
                     </select>
                 </div>
 
-                <!-- 인식할 물건 설정 -->
-                <div class="setting-item">
-                    <label>인식할 물건 설정</label>
-                    <!-- 선택 완료 후 표시되는 썸네일 행 -->
-                    <div id="target-preview-row" style="display:none;">
-                        <img id="target-thumb" src="" alt="" class="target-thumb-img">
-                        <div class="target-preview-info">
-                            <span class="target-preview-label">추적 대상</span>
-                            <span class="target-preview-status">추적 중</span>
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:4px; margin-left:auto;">
-                            <button id="btn-add-learning" class="btn-reselect" style="background:rgba(48,209,88,0.2); color:#30d158; border:none; padding:4px 8px; border-radius:6px; font-size:11px;">+ 반복 학습</button>
-                            <button id="btn-clear-target" class="btn-reselect" style="background:rgba(255,59,48,0.2); color:#ff3b30; border:none; padding:4px 8px; border-radius:6px; font-size:11px;">초기화 (삭제)</button>
-                        </div>
-                    </div>
-                    <button id="btn-select-target" class="target-select-btn">물건 새로 학습하기</button>
-                </div>
 
                 <div class="setting-item">
                     <label>조준점 반응 속도</label>
@@ -844,62 +827,6 @@
         </div>
     </div>
 
-    <!-- ══ ROI 드래그 선택 오버레이 ══ -->
-    <div id="roi-select-overlay">
-        <canvas id="roi-canvas"></canvas>
-        <div id="roi-banner">📦 학습할 물체에 네모칸을 그려주세요</div>
-        <div id="roi-confirm-btns" style="display:none;">
-            <button id="btn-roi-cancel">취소</button>
-            <button id="btn-roi-confirm">📸 이 영역 학습</button>
-        </div>
-    </div>
-
-    <!-- ══ 물체 종류 선택 모달 ══ -->
-    <div id="target-type-modal" class="ios-modal-backdrop">
-        <div class="more-learn-panel" style="padding-bottom: 30px;">
-            <div class="more-learn-title" style="margin-top:20px;">어떤 물건인가요?</div>
-            <div class="more-learn-desc" style="margin-bottom:10px;">물체의 모양에 맞춰 AI 추적 알고리즘이<br>최적화되어 추적 성능이 향상됩니다.</div>
-            
-            <div style="display:flex; flex-direction:column; gap:12px; margin-top:20px; width:100%;">
-                <button id="btn-type-ball" style="background:#0a84ff; color:white; border:none; border-radius:12px; padding:16px; font-size:16px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-                    <span style="font-size:20px;">🏀</span> 동그란 공 (원형 집중)
-                </button>
-                <button id="btn-type-other" style="background:#2c2c2e; color:white; border:none; border-radius:12px; padding:16px; font-size:16px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-                    <span style="font-size:20px;">📦</span> 기타 일반 사물
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ══ 학습 모드 오버레이 ══ -->
-    <div id="learn-overlay">
-        <div id="learn-banner">
-            <span id="learn-banner-text">물건을 이 영역 안에 두고 천천히 360° 돌려주세요</span>
-        </div>
-        <div id="learn-progress-wrap">
-            <div id="learn-progress-bar">
-                <div id="learn-progress-fill"></div>
-            </div>
-            <span id="learn-progress-pct">0%</span>
-        </div>
-        <button id="btn-cancel-learn">취소</button>
-    </div>
-
-    <!-- ══ 학습 완료 모달 (지문인식 스타일) ══ -->
-    <div id="more-learn-modal" class="ios-modal-backdrop">
-        <div class="more-learn-panel">
-            <div class="more-learn-thumb-wrap">
-                <img id="more-learn-thumb" src="" alt="" style="display:none;">
-                <svg id="more-learn-thumb-icon" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" style="width:36px;height:36px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
-            </div>
-            <div id="more-learn-count" class="more-learn-count">1회 학습 완료</div>
-            <div class="more-learn-title">더 학습할까요?</div>
-            <div class="more-learn-desc">반복할수록 인식률이 높아집니다.<br>다양한 각도에서 추가 학습하세요.</div>
-            <div id="more-learn-dots" class="more-learn-dots"></div>
-            <button id="btn-more-learn" class="more-learn-btn-add">📸 더 학습하기</button>
-            <button id="btn-finish-learn" class="more-learn-btn-done">✓ 완료</button>
-        </div>
-    </div>
 
     <!-- 카메라 스트림 비디오 -->
     <img src="/video" id="video" alt="Camera Stream">
