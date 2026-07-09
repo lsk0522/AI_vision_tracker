@@ -157,13 +157,18 @@ def _run():
             time.sleep(0.1)
 
         # ── 자동 모드: 조준점 갱신 (모터 추적) ──
-        if state.control_mode == "auto" and state.ball and frame is not None:
-            tx = state.ball.get("predicted_cx", state.ball["cx"])
-            ty = state.ball.get("predicted_cy", state.ball["cy"])
-            
-            # 타겟의 픽셀 좌표를 state.point에 넘겨 ESP32로 전송
-            state.point[0] = int(tx)
-            state.point[1] = int(ty)
+        if state.control_mode == "auto":
+            if state.ball and frame is not None:
+                tx = state.ball.get("predicted_cx", state.ball["cx"])
+                ty = state.ball.get("predicted_cy", state.ball["cy"])
+                
+                # 타겟의 픽셀 좌표를 state.point에 넘겨 ESP32로 전송
+                state.point[0] = int(tx)
+                state.point[1] = int(ty)
+            else:
+                # 타겟을 놓치면 모터가 폭주하지 않도록 즉시 정지(중앙 좌표)
+                state.point[0] = 320
+                state.point[1] = 240
 def start():
     global _thread
     _thread = threading.Thread(target=_run, daemon=True)
