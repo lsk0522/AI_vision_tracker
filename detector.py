@@ -156,12 +156,14 @@ def _run():
             print(f"[Detector] Exception in _run loop: {e}")
             time.sleep(0.1)
 
-        # ── 자동 모드: 조준점 고정 (조이스틱/모터 보호) ──
-        if state.control_mode == "auto":
-            # 무조건 화면 정중앙 좌표로 고정시켜 모터가 임의로 움직이지 않도록 함
-            state.point[0] = 320
-            state.point[1] = 240
-
+        # ── 자동 모드: 조준점 갱신 (모터 추적) ──
+        if state.control_mode == "auto" and state.ball and frame is not None:
+            tx = state.ball.get("predicted_cx", state.ball["cx"])
+            ty = state.ball.get("predicted_cy", state.ball["cy"])
+            
+            # 타겟의 픽셀 좌표를 state.point에 넘겨 ESP32로 전송
+            state.point[0] = int(tx)
+            state.point[1] = int(ty)
 def start():
     global _thread
     _thread = threading.Thread(target=_run, daemon=True)
