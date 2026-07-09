@@ -166,13 +166,13 @@ def _run():
                 err_x = tx - 320
                 err_y = ty - 240
                 
-                # 1. 픽셀 오차를 15%로 대폭 줄여서 오버슛 방지 (P-제어)
-                err_x *= 0.15
-                err_y *= 0.15
+                # 1. 픽셀 오차를 60%로 반영하여 즉각적으로 따라가게 (P-제어)
+                err_x *= 0.60
+                err_y *= 0.60
                 
-                # 2. 한 번에 꺾이는 최대 범위를 25픽셀로 제한
-                err_x = max(-25, min(25, err_x))
-                err_y = max(-25, min(25, err_y))
+                # 2. 한 번에 꺾이는 최대 범위를 80픽셀로 제한 (너무 느리지 않게)
+                err_x = max(-80, min(80, err_x))
+                err_y = max(-80, min(80, err_y))
                 
                 state.point[0] = int(320 + err_x)
                 state.point[1] = int(240 + err_y)
