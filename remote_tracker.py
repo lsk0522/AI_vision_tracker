@@ -14,14 +14,21 @@ def main():
     raspi_url = f"http://{args.ip}:5000"
     video_stream_url = f"{raspi_url}/video_feed"
     
-    # 모델 로드 (사용자가 지정한 바탕화면 경로)
-    model_path = os.path.join(os.environ.get('USERPROFILE', 'C:\\Users\\LSK0522'), 
-                              'Desktop', 'shuttlecock model', 'best_int8.tflite')
+    # 모델 로드 (사용자가 지정한 바탕화면 경로 - OneDrive 고려)
+    desktop_paths = [
+        os.path.join(os.environ.get('USERPROFILE', 'C:\\Users\\LSK0522'), 'OneDrive - 서울로봇고등학교', '바탕 화면', 'shuttlecock model', 'best_int8.tflite'),
+        os.path.join(os.environ.get('USERPROFILE', 'C:\\Users\\LSK0522'), 'Desktop', 'shuttlecock model', 'best_int8.tflite')
+    ]
     
-    if not os.path.exists(model_path):
-        # 만약 바탕화면에 없다면 현재 폴더에 있는 모델 사용
-        print(f"지정된 경로({model_path})에 모델이 없습니다. 현재 폴더의 모델을 사용합니다.")
-        model_path = 'best_int8.tflite'
+    model_path = 'best_int8.tflite'
+    for p in desktop_paths:
+        if os.path.exists(p):
+            model_path = p
+            break
+            
+    if model_path == 'best_int8.tflite' and not os.path.exists(model_path):
+        print("❌ 모델(best_int8.tflite)을 찾을 수 없습니다!")
+        return
         
     print(f"[노트북] YOLO 모델 로딩 중... ({model_path})")
     try:
@@ -31,10 +38,17 @@ def main():
         return
 
     print(f"[노트북] 라즈베리파이 카메라 스트림 연결 중... ({video_stream_url})")
-    cap = cv2.VideoCapture(video_stream_url)
     
+    cap = cv2.VideoCapture(video_stream_url)
+    retry_count = 0
+    while not cap.isOpened() and retry_count < 10:
+        print(f"아직 서버가 켜지지 않았습니다. 3초 후 재시도합니다... ({retry_count+1}/10)")
+        time.sleep(3)
+        cap = cv2.VideoCapture(video_stream_url)
+        retry_count += 1
+        
     if not cap.isOpened():
-        print("❌ 비디오 스트림을 열 수 없습니다. 라즈베리파이 IP 주소와 서버가 켜져 있는지 확인하세요.")
+        print("❌ 30초 이상 연결에 실패했습니다. 라즈베리파이 IP나 서버 상태를 확인해주세요.")
         return
         
     print("✅ 원격 추적이 시작되었습니다! 창을 닫으려면 'q'를 누르세요.")
