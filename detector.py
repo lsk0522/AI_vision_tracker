@@ -134,20 +134,10 @@ def _run():
                 _yolo.stop_tracking()
                 ball = None
 
-            # ── 칼만 갱신 ────────────────────────────────────
+            # ── 갱신 ────────────────────────────────────
             if ball:
-                px, py = _kalman.update(ball["cx"], ball["cy"])
-                ball["predicted_cx"] = px
-                ball["predicted_cy"] = py
                 state.ball      = ball
                 state.ball_lost = False
-            elif state.control_mode == 'auto':
-                pred = _kalman.predict_next()
-                state.ball_lost = True
-                state.ball = (
-                    {"cx": pred[0], "cy": pred[1], "predicted": True, "detector": "kalman"}
-                    if pred else None
-                )
             else:
                 state.ball      = None
                 state.ball_lost = False
@@ -156,23 +146,20 @@ def _run():
             print(f"[Detector] Exception in _run loop: {e}")
             time.sleep(0.1)
 
-        # ── 자동 모드: 조준점 갱신 (모터 추적) ──
         if state.control_mode == "auto":
             if state.ball and frame is not None:
-                tx = state.ball.get("predicted_cx", state.ball["cx"])
-                ty = state.ball.get("predicted_cy", state.ball["cy"])
+                # 칼만 필터 예측값이 아닌 실제 객체 좌표를 그대로 사용합니다.
+                tx = state.ball["cx"]
+                ty = state.ball["cy"]
                 
-                # 모터 급발진 방지 (Damping & Clamping)
                 err_x = tx - 320
                 err_y = ty - 240
                 
-                # 1. 픽셀 오차를 60%로 반영하여 즉각적으로 따라가게 (P-제어)
-                err_x *= 0.60
-                err_y *= 0.60
+                # 객체를 정확하게 쳐다보게 하기 위해 P-gain(0.60)을 제거하여 100% 이동하도록 합니다.
                 
-                # 2. 한 번에 꺾이는 최대 범위를 80픽셀로 제한 (너무 느리지 않게)
-                err_x = max(-80, min(80, err_x))
-                err_y = max(-80, min(80, err_y))
+                # 한 번에 꺾이는 최대 범위를 160픽셀로 확장 (더 빠르고 정확하게)
+                err_x = max(-160, min(160, err_x))
+                err_y = max(-160, min(160, err_y))
                 
                 state.point[0] = int(320 + err_x)
                 state.point[1] = int(240 + err_y)
