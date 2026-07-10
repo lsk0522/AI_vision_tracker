@@ -1,30 +1,25 @@
 @echo off
-chcp 65001 > nul
 echo ========================================================
 echo   AI Vision Tracker - One-Click Launcher (Remote Mode)
 echo ========================================================
 echo.
 
-:: 1. 설정 정보 (하드코딩)
 set RASPI_IP=172.30.14.31
 set RASPI_ID=pi30306
 
-echo.
-echo [알림] 라즈베리파이(%RASPI_ID%@%RASPI_IP%)에서 서버를 시작합니다...
-echo (SSH 비밀번호를 물어보면 입력해주세요!)
+echo Starting Raspberry Pi Server (%RASPI_ID%@%RASPI_IP%)...
+echo (Please enter SSH password if prompted in the new window)
 echo.
 
-:: 2. 라즈베리파이에 SSH 접속하여 자동 업데이트(git pull) 후 ./start.sh 실행 (새 창에서 띄움)
 start "Raspberry Pi Server" ssh -t %RASPI_ID%@%RASPI_IP% "cd ~/AI_vision_tracker-main && git pull origin dev && ./start.sh"
 
-echo 라즈베리파이 서버가 켜질 때까지 5초 대기합니다...
+echo Waiting 5 seconds for the server to start...
 timeout /t 5 > nul
 
-:: 3. 노트북에서 원격 트래커 실행 (AI 계산)
 echo.
-echo [알림] 노트북에서 AI 객체 인식 트래커를 시작합니다...
+echo Starting Laptop AI Remote Tracker...
 python remote_tracker.py --ip %RASPI_IP%
 
 echo.
-echo 모든 작업이 종료되었습니다. 아무 키나 누르면 닫힙니다.
+echo Finished. Press any key to exit.
 pause > nul
