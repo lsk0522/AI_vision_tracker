@@ -128,11 +128,20 @@ def _run():
             ball = None
 
             if state.control_mode == 'auto':
-                _yolo.start_tracking()
-                ball = _yolo.track(frame)
+                import time
+                # 원격(노트북) 추적 모드일 경우 로컬 YOLO 중단 (CPU 절약)
+                if getattr(state, 'remote_tracking_last_time', 0.0) > 0 and (time.time() - state.remote_tracking_last_time < 2.0):
+                    _yolo.stop_tracking()
+                    ball = state.ball
+                else:
+                    _yolo.start_tracking()
+                    ball = _yolo.track(frame)
+                    if ball:
+                        state.ball = ball
             else:
                 _yolo.stop_tracking()
                 ball = None
+                state.ball = None
 
             # ── 갱신 ────────────────────────────────────
             if ball:

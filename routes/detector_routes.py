@@ -10,7 +10,6 @@ bp = Blueprint('detector', __name__)
 
 # ── 갤러리 ────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# routes is a subdirectory, so we go up one level
 PROJECT_DIR = os.path.dirname(BASE_DIR)
 PICTURE_DIR = os.path.join(PROJECT_DIR, "picture")
 
@@ -70,4 +69,26 @@ def tracking_status():
     )
 
 
-# (Legacy learning endpoints removed)
+@bp.route('/set_target', methods=['GET', 'POST'])
+def set_target():
+    """노트북 등 외부(원격) 기기에서 YOLO 검출 결과를 받아오는 엔드포인트"""
+    import time
+    tx = request.args.get('tx', type=int)
+    ty = request.args.get('ty', type=int)
+    
+    if tx is not None and ty is not None:
+        state.remote_tracking_last_time = time.time()
+        state.ball = {
+            "cx": tx,
+            "cy": ty,
+            "x": tx - 10,
+            "y": ty - 10,
+            "w": 20,
+            "h": 20,
+            "conf": 1.0,
+            "predicted": False,
+            "detector": "remote"
+        }
+        state.ball_lost = False
+    
+    return jsonify({"status": "ok"})
