@@ -5,12 +5,9 @@ echo   AI Vision Tracker - One-Click Launcher (Remote Mode)
 echo ========================================================
 echo.
 
-:: 1. 설정 정보 입력받기
-set /p RASPI_IP="1. 라즈베리파이 IP 주소를 입력하세요 (기본값: 192.168.0.28): "
-if "%RASPI_IP%"=="" set RASPI_IP=192.168.0.28
-
-set /p RASPI_ID="2. 라즈베리파이 접속 아이디를 입력하세요 (기본값: pi): "
-if "%RASPI_ID%"=="" set RASPI_ID=pi
+:: 1. 설정 정보 (하드코딩)
+set RASPI_IP=172.30.14.31
+set RASPI_ID=pi30306
 
 echo.
 echo [알림] 라즈베리파이(%RASPI_ID%@%RASPI_IP%)에서 서버를 시작합니다...
