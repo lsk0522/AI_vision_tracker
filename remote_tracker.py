@@ -8,7 +8,7 @@ from ultralytics import YOLO
 
 def main():
     parser = argparse.ArgumentParser(description="Laptop Remote AI Tracker for Raspberry Pi")
-    parser.add_argument("--ip", type=str, required=True, help="라즈베리파이 IP 주소를 입력하세요 (예: 192.168.0.100)")
+    parser.add_argument("--ip", type=str, default="raspberrypi.local", help="라즈베리파이 IP 주소 (기본값: raspberrypi.local)")
     args = parser.parse_args()
     
     raspi_url = f"http://{args.ip}:5000"
