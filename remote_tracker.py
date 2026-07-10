@@ -37,18 +37,30 @@ def main():
         print(f"모델 로드 실패: {e}")
         return
 
-    print(f"[노트북] 라즈베리파이 카메라 스트림 연결 중... ({video_stream_url})")
+    print(f"[노트북] 라즈베리파이 서버 연결 대기 중... ({raspi_url})")
     
-    cap = cv2.VideoCapture(video_stream_url)
-    retry_count = 0
-    while not cap.isOpened() and retry_count < 10:
-        print(f"아직 서버가 켜지지 않았습니다. 3초 후 재시도합니다... ({retry_count+1}/10)")
-        time.sleep(3)
-        cap = cv2.VideoCapture(video_stream_url)
-        retry_count += 1
+    server_up = False
+    for i in range(20):
+        try:
+            # 타임아웃 1초로 빠르게 서버 응답 확인
+            res = requests.get(f"{raspi_url}/", timeout=1.0)
+            server_up = True
+            break
+        except requests.exceptions.RequestException:
+            pass
+            
+        print(f"아직 서버가 켜지지 않았습니다. 2초 후 재시도합니다... ({i+1}/20)")
+        time.sleep(2)
         
+    if not server_up:
+        print("❌ 40초 이상 연결에 실패했습니다. 라즈베리파이 IP나 서버 상태를 확인해주세요.")
+        return
+        
+    print("[노트북] 서버 확인 완료! 비디오 스트림을 엽니다...")
+    cap = cv2.VideoCapture(video_stream_url)
+    
     if not cap.isOpened():
-        print("❌ 30초 이상 연결에 실패했습니다. 라즈베리파이 IP나 서버 상태를 확인해주세요.")
+        print("❌ 비디오 스트림을 열 수 없습니다.")
         return
         
     print("✅ 원격 추적이 시작되었습니다! 창을 닫으려면 'q'를 누르세요.")
