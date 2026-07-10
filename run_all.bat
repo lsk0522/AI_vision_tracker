@@ -11,7 +11,7 @@ echo Starting Raspberry Pi Server (%RASPI_ID%@%RASPI_IP%)...
 echo (Please enter SSH password if prompted in the new window)
 echo.
 
-start "Raspberry Pi Server" ssh -t %RASPI_ID%@%RASPI_IP% "cd ~/AI_vision_tracker-main && git pull origin dev && ./start.sh"
+start "Raspberry Pi Server" ssh -t %RASPI_ID%@%RASPI_IP% "cd ~/AI_vision_tracker && git pull origin dev && ./start.sh"
 
 echo Waiting 5 seconds for the server to start...
 timeout /t 5 > nul
