@@ -12,7 +12,7 @@ def main():
     args = parser.parse_args()
     
     raspi_url = f"http://{args.ip}:5000"
-    video_stream_url = f"{raspi_url}/video_feed"
+    video_stream_url = f"{raspi_url}/video"
     
     # 모델 로드 (사용자가 지정한 바탕화면 경로 - OneDrive 고려)
     desktop_paths = [
