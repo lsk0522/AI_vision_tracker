@@ -121,3 +121,6 @@ _prev_m2_pos = 0.0
 
 # 터미널 표시용 리밋 경고 메시지
 active_limit_msg = ""
+
+# 원격 추적 플래그 (노트북 오프로딩 시 로컬 YOLO 중단)
+remote_tracking = False

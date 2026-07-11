@@ -83,15 +83,12 @@ detector.start()
 motor_esp32.start()   # ESP32 연결
 motor_arduino.start() # Arduino 연결
 
+local_ip = get_local_ip()
+print("✔ All systems go!")
+print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
+print("Press Ctrl+C to quit")
 try:
-    import waitress  # type: ignore
-    local_ip = get_local_ip()
-    print("✔ All systems go!")
-    print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
-    print("Press Ctrl+C to quit")
-    waitress.serve(app, host='0.0.0.0', port=5000)
-except ImportError:
-    local_ip = get_local_ip()
-    print("! Waitress not found, using Flask Dev Server")
-    print(f"=> Web Dashboard is available at: http://{local_ip}:5000/")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+except Exception as e:
+    cli_ui.stop_tui()
+    print(f"\n[FATAL ERROR] {e}\n")
