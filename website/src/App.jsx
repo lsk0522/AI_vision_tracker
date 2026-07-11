@@ -1,16 +1,21 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Target, Shield, Cpu, ExternalLink, Activity, Server, Zap, Layers, Lock, X, Terminal, MousePointer2 } from 'lucide-react'
+import { Target, Shield, Cpu, ExternalLink, Activity, Zap, Layers, Lock, X, Terminal, MousePointer2 } from 'lucide-react'
 import RobotViewer from './RobotViewer'
 import SimulationViewer from './SimulationViewer'
 import ErrorBoundary from './ErrorBoundary'
+import turretDiagram from './assets/turret_diagram.png'
+
+const TECH_BADGES = [
+  'Python', 'Flask', 'OpenCV', 'C++', 'Raspberry Pi 4', 'ESP32', 'React', 'Three.js'
+];
 
 const HERO_KEYWORDS = [
   "실시간 객체 인식",
   "AI 기반 자동 추적",
   "물리적 안전 제어",
   "2축 정밀 조준",
-  "초저지연 모터 응답"
+  "즉각적인 모터 응답"
 ];
 
 function RollingHeroText() {
@@ -193,6 +198,11 @@ function App() {
           </div>
           <span className="font-bold text-lg tracking-tight text-white">AI Vision Tracker</span>
         </div>
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-brand-muted">
+          <a href="#features" className="hover:text-white transition-colors">기능</a>
+          <a href="#architecture" className="hover:text-white transition-colors">아키텍처</a>
+          <a href="#Simulationrobot" className="hover:text-white transition-colors">데모</a>
+        </div>
         <div className="flex items-center gap-4">
           <a href="https://github.com/lsk0522/AI_vision_tracker" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-brand-muted hover:text-white transition-colors font-mono font-medium">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -246,6 +256,14 @@ function App() {
               대시보드 접속 <ExternalLink size={18} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
             </a>
           </div>
+
+          {/* 실측 스펙 스트립 — README 하드웨어 제어 원리 수치 재사용 */}
+          <div className="mt-10 pt-8 border-t border-brand-border/50 w-full max-w-xl grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6">
+            <StatTile value="3000Hz" label="최대 속도" />
+            <StatTile value="8.0Hz/ms" label="가속도" />
+            <StatTile value="±180°" label="Pan 회전 범위" />
+            <StatTile value="2축" label="정밀 제어" />
+          </div>
         </motion.div>
 
         <motion.div 
@@ -267,7 +285,7 @@ function App() {
       </section>
 
       {/* Architecture & Tech Stack (Bento Box) */}
-      <section className="py-24 max-w-7xl mx-auto px-4 md:px-8 relative z-10">
+      <section id="architecture" className="pt-24 pb-16 max-w-7xl mx-auto px-4 md:px-8 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-extrabold mb-6">강력한 하드웨어와 소프트웨어의 결합</h2>
           <p className="text-brand-muted text-lg max-w-2xl mx-auto break-keep leading-relaxed">
@@ -277,16 +295,19 @@ function App() {
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 auto-rows-[220px]">
           {/* Large Card 2x2 */}
-          <div className="md:col-span-2 md:row-span-2 glass-panel rounded-3xl p-10 flex flex-col justify-end relative overflow-hidden group transition-transform duration-300 hover:-translate-y-1 hover:border-brand-neon/30">
-            <div className="absolute -top-10 -right-10 p-8 opacity-10 group-hover:opacity-20 group-hover:rotate-12 transition-all duration-500 text-brand-neon">
-              <Server size={250} />
-            </div>
-            <div className="relative z-10">
+          <div className="md:col-span-2 md:row-span-2 glass-panel rounded-3xl p-8 md:p-10 flex flex-col md:flex-row items-center gap-6 relative overflow-hidden group transition-transform duration-300 hover:-translate-y-1 hover:border-brand-neon/30">
+            <div className="relative z-10 flex-1 order-2 md:order-1">
               <div className="w-12 h-12 rounded-xl bg-brand-surface border border-brand-border flex items-center justify-center mb-6">
                 <Cpu className="text-brand-neon" size={24} />
               </div>
               <h3 className="text-3xl font-bold mb-4 text-white">Raspberry Pi 4 & ESP32</h3>
-              <p className="text-brand-muted text-lg leading-relaxed break-keep">강력한 연산 능력의 라즈베리파이가 AI 비전 처리를 전담하고,<br />실시간 모터 제어는 ESP32 하드웨어 인터럽트로 완벽하게 분산 처리하여 지연(Latency) 없는 추적을 보장합니다.</p>
+              <p className="text-brand-muted text-lg leading-relaxed break-keep">강력한 연산 능력의 라즈베리파이가 AI 영상 처리를 전담하고,<br />실시간 모터 제어는 ESP32가 맡아 완벽하게 나눠 처리하여 끊김 없이 즉각 반응하는 추적을 보장합니다.</p>
+            </div>
+            <div className="relative z-10 order-1 md:order-2 shrink-0 w-full md:w-48 lg:w-56">
+              <div className="rounded-2xl bg-white p-3 shadow-xl border border-brand-border/50 group-hover:-rotate-1 transition-transform duration-300">
+                <img src={turretDiagram} alt="AI Vision Tracker 터렛 CAD 도면" className="w-full h-auto rounded-lg" />
+              </div>
+              <div className="mt-2 text-center text-[11px] text-brand-muted font-mono">실측 터렛 CAD 도면</div>
             </div>
           </div>
           
@@ -296,9 +317,9 @@ function App() {
               <div className="w-12 h-12 rounded-full bg-brand-surface border border-brand-border flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
                 <Activity size={24} />
               </div>
-              <h3 className="text-2xl font-bold text-white">OpenCV CSRT Algorithm</h3>
+              <h3 className="text-2xl font-bold text-white">OpenCV 정밀 추적</h3>
             </div>
-            <p className="text-brand-muted leading-relaxed break-keep">기존 단순 색상 추적과 달리 다각도의 형태 변화와<br />가려짐(Occlusion)에도 강인한 CSRT 객체 추적 알고리즘 탑재</p>
+            <p className="text-brand-muted leading-relaxed break-keep">기존 단순 색상 추적과 달리 다각도의 형태 변화와<br />가려짐에도 강인하게 물체를 놓치지 않는 추적 알고리즘 탑재</p>
           </div>
           
           {/* Small Cards 1x1 */}
@@ -309,14 +330,26 @@ function App() {
           </div>
           <div className="md:col-span-1 md:row-span-1 glass-panel rounded-3xl p-6 flex flex-col justify-center items-center text-center group transition-transform duration-300 hover:-translate-y-1 hover:border-purple-400/50">
             <Lock size={40} className="text-purple-400 mb-4 group-hover:scale-110 transition-transform" />
-            <h3 className="font-bold text-lg mb-2 text-white">Safe Zone API</h3>
-            <p className="text-brand-muted text-sm">물리 충돌 방지 소프트웨어 제동</p>
+            <h3 className="font-bold text-lg mb-2 text-white">안전 구역 기능</h3>
+            <p className="text-brand-muted text-sm">부딪히지 않도록 자동으로 멈춤</p>
           </div>
         </div>
       </section>
 
+      {/* Tech Marquee Strip */}
+      <div className="relative z-10 py-8 border-y border-brand-border/30 overflow-hidden">
+        <div className="flex w-max animate-marquee gap-16">
+          {[...TECH_BADGES, ...TECH_BADGES].map((t, i) => (
+            <span key={i} className="flex items-center gap-3 text-brand-muted font-mono text-sm whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-neon shrink-0"></span>
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Features Section */}
-      <section id="features" className="py-24 bg-brand-section border-y border-brand-border/50 relative z-10">
+      <section id="features" className="pt-16 pb-24 bg-brand-section border-b border-brand-border/50 relative z-10">
         {/* Background Grid Pattern */}
         <div className="absolute inset-0 bg-grid-pattern pointer-events-none opacity-100 [mask-image:linear-gradient(to_bottom,transparent,black_10%,black_90%,transparent)]"></div>
         
@@ -329,20 +362,20 @@ function App() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <FeatureCard 
+            <FeatureCard
               icon={<Shield size={28} className="text-brand-neon" />}
-              title="Dynamic 2D Safe Zone"
-              description="카메라가 아래를 향할 때 회전 반경을 자동으로 줄여 기둥과의 물리적 충돌을 완벽하게 방지합니다."
+              title="자동 안전 구역"
+              description="카메라가 아래를 향할 때 회전 범위를 자동으로 줄여 기둥과의 물리적 충돌을 완벽하게 방지합니다."
             />
-            <FeatureCard 
+            <FeatureCard
               icon={<Cpu size={28} className="text-blue-400" />}
-              title="Soft Braking System"
-              description="목적지 도달 전 소프트웨어적으로 점진적 감속을 수행하여 하드웨어의 관성 밀림(오버슛)을 제거했습니다."
+              title="부드러운 감속"
+              description="목적지에 도달하기 전 점진적으로 속도를 줄여 하드웨어가 관성으로 밀리는 현상을 제거했습니다."
             />
-            <FeatureCard 
+            <FeatureCard
               icon={<Target size={28} className="text-purple-400" />}
-              title="AI CSRT Tracking"
-              description="OpenCV 기반의 초고속 객체 인식 알고리즘으로, 카메라가 움직이는 중에도 타겟을 흔들림 없이 추적합니다."
+              title="AI 정밀 추적"
+              description="OpenCV 기반의 초고속 물체 인식 알고리즘으로, 카메라가 움직이는 중에도 타겟을 흔들림 없이 추적합니다."
             />
           </div>
         </div>
@@ -363,9 +396,9 @@ function App() {
             <div className="md:hidden absolute top-[5%] bottom-[5%] left-10 w-[2px] bg-gradient-to-b from-transparent via-brand-border to-transparent z-0"></div>
             
             {[
-              { step: '01', title: 'Target Acquisition', desc: '카메라 모듈이 초당 60프레임으로 이미지를 수집하고 사용자가 지정한 타겟을 인식합니다.' },
-              { step: '02', title: 'AI Processing', desc: '라즈베리파이 내부의 OpenCV엔진이 타겟의 예상 이동 경로와 현재 오차를 계산합니다.' },
-              { step: '03', title: 'Hardware Actuation', desc: '계산된 좌표를 ESP32가 넘겨받아 초정밀 PID 제어로 서보모터를 부드럽게 구동시킵니다.' }
+              { step: '01', title: '타겟 인식', desc: '카메라 모듈이 초당 60프레임으로 이미지를 수집하고 사용자가 지정한 타겟을 인식합니다.' },
+              { step: '02', title: '위치 계산', desc: '라즈베리파이가 타겟의 예상 이동 경로와 현재 오차를 계산합니다.' },
+              { step: '03', title: '모터 구동', desc: '계산된 좌표를 ESP32가 넘겨받아 정밀하게 제어하여 모터를 부드럽게 구동시킵니다.' }
             ].map((item, i) => (
               <div key={i} className="relative z-10 flex flex-row md:flex-col items-center md:items-center gap-6 md:gap-6 md:text-center w-full md:w-1/3 group">
                 <div className="w-20 h-20 shrink-0 rounded-full bg-[#1f2937] flex items-center justify-center text-2xl font-black text-[#00ffaa] border-2 border-[#00ffaa] shadow-[0_0_20px_rgba(0,255,170,0.4)] group-hover:scale-110 group-hover:shadow-[0_0_30px_rgba(0,255,170,0.8)] transition-all duration-300 relative z-20">
@@ -403,10 +436,35 @@ function App() {
       </section>
 
       {/* Footer */}
-      <footer className="py-10 text-center text-brand-muted/60 border-t border-brand-border/30 text-sm bg-brand-light relative z-10">
-        <p className="mb-2">© 2026 AI Vision Tracker. All rights reserved.</p>
-        <p className="text-xs">Designed with modern web technologies & Three.js</p>
+      <footer className="pt-16 pb-10 text-brand-muted/70 border-t border-brand-border/30 text-sm bg-brand-light relative z-10">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-brand-neon/20 border border-brand-neon/50 flex items-center justify-center">
+              <Target size={16} className="text-brand-neon" />
+            </div>
+            <span className="font-bold text-white">AI Vision Tracker</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+            <a href="#features" className="hover:text-white transition-colors">기능</a>
+            <a href="#Simulationrobot" className="hover:text-white transition-colors">데모</a>
+            <a href="https://github.com/lsk0522/AI_vision_tracker/blob/main/USER_GUIDE.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">사용자 가이드</a>
+            <a href="https://github.com/lsk0522/AI_vision_tracker" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8 pt-6 border-t border-brand-border/20 flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-brand-muted/60 text-center">
+          <p>© 2026 AI Vision Tracker. All rights reserved.</p>
+          <p>서울로봇고등학교 졸업작품으로 제작되었습니다.</p>
+        </div>
       </footer>
+    </div>
+  )
+}
+
+function StatTile({ value, label }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-xl md:text-2xl font-extrabold text-white tracking-tight leading-tight break-words">{value}</div>
+      <div className="mt-1 text-xs text-brand-muted break-words">{label}</div>
     </div>
   )
 }

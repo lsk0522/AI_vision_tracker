@@ -101,12 +101,16 @@ export default function RobotViewer() {
         shadows
         gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
         camera={{ position: [8, 8, 8], fov: 45, near: 0.01, far: 1000 }}
-        style={{ width: '100%', height: '100%', display: 'block', background: '#f0f2f5' }}
+        style={{ width: '100%', height: '100%', display: 'block' }}
         dpr={window.devicePixelRatio ? Math.min(2, window.devicePixelRatio) : 2}
       >
-        <ambientLight intensity={0.5} />
+        {/* 다크 브랜드 테마와 통일된 배경 (SimulationViewer와 동일 톤) */}
+        <color attach="background" args={['#0b0f19']} />
+
+        <ambientLight intensity={0.6} />
         <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
         <pointLight position={[-10, -10, -10]} intensity={0.5} />
+        <spotLight position={[-6, 4, 6]} angle={0.3} penumbra={1} intensity={0.8} color="#00ffaa" />
 
         <Suspense fallback={null}>
           <Bounds fit clip observe margin={1.2}>
@@ -118,7 +122,7 @@ export default function RobotViewer() {
           <Environment preset="city" />
 
           {/* 바닥 그림자 (공중에 떠있는 모델 아래에 자연스러운 그림자 생성) */}
-          <ContactShadows position={[0, -1.5, 0]} opacity={0.4} scale={10} blur={2} far={4} />
+          <ContactShadows position={[0, -1.5, 0]} opacity={0.5} scale={10} blur={2} far={4} color="#000000" />
 
           {/* 바닥 그리드 (허전한 느낌을 없애고 전문적인 엔지니어링 툴 느낌 추가) */}
           <Grid
@@ -126,10 +130,10 @@ export default function RobotViewer() {
             args={[20, 20]}
             cellSize={0.5}
             cellThickness={1}
-            cellColor="#6f7a8b"
+            cellColor="#1f2937"
             sectionSize={2.5}
             sectionThickness={1.5}
-            sectionColor="#3f4a5b"
+            sectionColor="#00ffaa"
             fadeDistance={25}
             fadeStrength={1}
           />
@@ -144,6 +148,17 @@ export default function RobotViewer() {
           maxPolarAngle={Math.PI / 1.8}
         />
       </Canvas>
+
+      {/* HUD 오버레이 — 빈 여백을 "제어 시스템" 느낌으로 채움 */}
+      <div className="absolute bottom-4 left-4 z-20 px-4 py-2 rounded-xl bg-black/40 backdrop-blur-md border border-brand-border/50 text-[11px] font-mono text-brand-muted flex items-center gap-3 pointer-events-none">
+        <span className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-brand-neon animate-pulse"></span>
+          대기 중
+        </span>
+        <span className="text-brand-border">|</span>
+        <span>1축(수평) 0.0°</span>
+        <span>2축(수직) 0.0°</span>
+      </div>
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { OrbitControls, useGLTF, Center, Environment, ContactShadows } from '@re
 // 2D 마우스 위치를 모터 회전 각도에 1:1로 직접 매핑합니다.
 
 // 수학적으로 Pivot(중심축)을 강제로 맞춘 추적 모델
-function TrackingModel({ axisZ, angleSign, panSign, panOffset, tiltOffset, showOrigins }) {
+function TrackingModel({ axisZ, angleSign, panSign, panOffset, tiltOffset, showOrigins, debug, hudRef }) {
   const base = useGLTF(`${import.meta.env.BASE_URL}Base.glb`)
   const pan = useGLTF(`${import.meta.env.BASE_URL}Pan_Axis.glb`)
   const tilt = useGLTF(`${import.meta.env.BASE_URL}Tilt_Axis.glb`)
@@ -20,14 +20,15 @@ function TrackingModel({ axisZ, angleSign, panSign, panOffset, tiltOffset, showO
   // Tilt 축(회전 힌지): 사용자 요청에 따라 유지하는 2축 대각선 모터축 (1, 0, axisZ)
   const tiltAxis = React.useMemo(() => new THREE.Vector3(1, 0, axisZ).normalize(), [axisZ]);
 
-  // 2. 축 검증 로직 (컴포넌트 마운트 시 브라우저 콘솔에 출력)
+  // 2. 축 검증 로직 (디버그 모드에서만 브라우저 콘솔에 출력)
   React.useEffect(() => {
+    if (!debug) return
     console.log("=== 조인트 축 정렬 검증 ===");
     console.log(`Pan Axis: (${panAxis.x}, ${panAxis.y}, ${panAxis.z})`);
     console.log(`Tilt Axis: (${tiltAxis.x}, ${tiltAxis.y}, ${tiltAxis.z})`);
     const dotProduct = panAxis.dot(tiltAxis);
     console.log(`내적 (Dot Product): ${dotProduct} (0이면 완벽한 직교)`);
-  }, [panAxis, tiltAxis]);
+  }, [panAxis, tiltAxis, debug]);
 
   const applyMaterial = React.useCallback((scene) => {
     scene.traverse((child) => {
@@ -92,6 +93,13 @@ function TrackingModel({ axisZ, angleSign, panSign, panOffset, tiltOffset, showO
       let targetTiltAngle = state.pointer.y * (Math.PI / 4) * angleSign + tiltOffset
       const targetQuat = new THREE.Quaternion().setFromAxisAngle(tiltAxis, targetTiltAngle)
       tiltRef.current.quaternion.slerp(targetQuat, 0.08)
+
+      // 방문자용 실시간 수평/수직 각도 HUD (리렌더 없이 DOM 직접 갱신)
+      if (hudRef && hudRef.current) {
+        const panDeg = (targetPanAngle * 180 / Math.PI).toFixed(1)
+        const tiltDeg = (targetTiltAngle * 180 / Math.PI).toFixed(1)
+        hudRef.current.textContent = `1축(수평) ${panDeg}°  ·  2축(수직) ${tiltDeg}°`
+      }
     }
   })
 
@@ -128,14 +136,21 @@ function TrackingModel({ axisZ, angleSign, panSign, panOffset, tiltOffset, showO
 }
 
 export default function SimulationViewer() {
-  const [axisZ, setAxisZ] = useState(1); 
+  // 개발자용 축 튜닝 패널은 ?debug=1 접속 시에만 노출 (일반 방문자에게는 숨김)
+  const isDebug = React.useMemo(
+    () => new URLSearchParams(window.location.search).get('debug') === '1',
+    []
+  );
+
+  const [axisZ, setAxisZ] = useState(1);
   const [angleSign, setAngleSign] = useState(1); // 1 (정방향), -1 (역방향)
   const [panSign, setPanSign] = useState(1); // 마우스 방향 일치
   const [panOffset, setPanOffset] = useState(-Math.PI * 0.75); // 1축 영점 -135도 교정
   const [tiltOffset, setTiltOffset] = useState(-20 * (Math.PI / 180)); // 2축 영점 -20도 교정
   const [showOrigins, setShowOrigins] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
-  
+  const hudRef = useRef(null);
+
   // 마우스 타겟 UI를 위한 좌표 상태
   const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
 
@@ -157,13 +172,15 @@ export default function SimulationViewer() {
         <spotLight position={[-5, 5, 5]} angle={0.3} penumbra={1} intensity={1} color="#00ffaa" />
         
         <Suspense fallback={null}>
-          <TrackingModel 
+          <TrackingModel
             axisZ={axisZ}
-            angleSign={angleSign} 
+            angleSign={angleSign}
             panSign={panSign}
             panOffset={panOffset}
             tiltOffset={tiltOffset}
             showOrigins={showOrigins}
+            debug={isDebug}
+            hudRef={hudRef}
           />
           <Environment preset="city" />
           <ContactShadows position={[0, -1.5, 0]} opacity={0.5} scale={10} blur={2} far={4} color="#000000" />
@@ -182,7 +199,21 @@ export default function SimulationViewer() {
         />
       </Canvas>
 
-      {/* 정밀 튜닝 UI 패널 */}
+      {/* 방문자 안내 문구 (디버그 패널이 없을 때만 노출) */}
+      {!isDebug && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-black/40 backdrop-blur-md border border-brand-border/50 text-xs md:text-sm text-brand-muted pointer-events-none whitespace-nowrap">
+          마우스를 움직여 터렛의 시선 추적을 확인해보세요
+        </div>
+      )}
+
+      {/* 실시간 PAN/TILT HUD */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-xl bg-black/40 backdrop-blur-md border border-brand-border/50 text-xs font-mono text-brand-muted pointer-events-none flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-brand-neon animate-pulse"></span>
+        <span ref={hudRef}>1축(수평) 0.0°  ·  2축(수직) 0.0°</span>
+      </div>
+
+      {/* 정밀 튜닝 UI 패널 (?debug=1 접속 시에만 노출) */}
+      {isDebug && (
       <div className={`absolute top-20 right-6 bg-black/80 backdrop-blur-md rounded-2xl border border-brand-neon/50 text-white shadow-2xl pointer-events-auto transition-all duration-300 ${isPanelOpen ? 'w-80 p-4' : 'w-12 h-12 flex items-center justify-center cursor-pointer'}`}>
         {!isPanelOpen ? (
           <button onClick={() => setIsPanelOpen(true)} className="w-full h-full font-bold text-brand-neon hover:scale-110 transition-transform">⚙️</button>
@@ -204,7 +235,7 @@ export default function SimulationViewer() {
               </button>
 
               <div className="p-3 bg-white/5 rounded-lg border border-red-400/30">
-                <h5 className="text-xs font-bold mb-3 text-red-400">1축 (Pan / 좌우) 튜닝</h5>
+                <h5 className="text-xs font-bold mb-3 text-red-400">1축 (수평) 튜닝</h5>
                 <label className="text-[10px] flex justify-between mb-1 text-gray-300">
                   영점(정면) 교정 <span>{Math.round(panOffset * (180 / Math.PI))}도</span>
                 </label>
@@ -222,7 +253,7 @@ export default function SimulationViewer() {
               </div>
 
               <div className="p-3 bg-white/5 rounded-lg border border-blue-400/30">
-                <h5 className="text-xs font-bold mb-3 text-blue-400">2축 (Tilt / 상하) 튜닝</h5>
+                <h5 className="text-xs font-bold mb-3 text-blue-400">2축 (수직) 튜닝</h5>
                 <label className="text-[10px] flex justify-between mb-1 text-gray-300">
                   영점(정면) 교정 <span>{Math.round(tiltOffset * (180 / Math.PI))}도</span>
                 </label>
@@ -248,6 +279,7 @@ export default function SimulationViewer() {
           </>
         )}
       </div>
+      )}
 
       {/* 마우스 주변 타겟팅 시각 효과 (텍스트 없음) */}
       <div 
