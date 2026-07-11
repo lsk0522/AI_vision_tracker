@@ -3,6 +3,7 @@ import os
 import base64
 import cv2
 from flask import Blueprint, request, jsonify, send_from_directory
+from werkzeug.utils import safe_join
 import state
 
 bp = Blueprint('detector', __name__)
@@ -39,7 +40,9 @@ def serve_picture(filename):
 def delete_picture(filename):
     import os
     pic_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'picture')
-    file_path = os.path.join(pic_dir, filename)
+    file_path = safe_join(pic_dir, filename)
+    if file_path is None:
+        return jsonify({"status": "error", "message": "Invalid filename"}), 400
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
