@@ -4,7 +4,7 @@ import base64
 import cv2
 from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import safe_join
-import state
+from config import state
 
 bp = Blueprint('detector', __name__)
 

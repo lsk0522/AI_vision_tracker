@@ -2,7 +2,7 @@
 import subprocess
 import time
 from flask import Blueprint, request, jsonify
-import state
+from config import state
 
 bp = Blueprint('motor', __name__)
 
@@ -72,7 +72,7 @@ def esp32_deg_settings():
 
 @bp.route('/set_esp32_deg_config')
 def set_esp32_deg_config():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     key   = request.args.get('key', '')
     value = request.args.get('value', '')
     _CFG = {
@@ -110,7 +110,7 @@ def motor_settings_get():
 
 @bp.route('/set_motor_config')
 def set_motor_config():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     key   = request.args.get('key', '')
     value = request.args.get('value', '')
     _MAP = {
@@ -134,7 +134,7 @@ def set_motor_config():
 # ── ESP32 이동 명령 ────────────────────────────────────────
 @bp.route('/esp32_move')
 def esp32_move():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     target = request.args.get('target', 'M1').upper()
     if target not in ('M1', 'M2', 'M1,M2'):
         return "INVALID TARGET", 400
@@ -154,7 +154,7 @@ def esp32_move():
 
 @bp.route('/esp32_sethome')
 def esp32_sethome():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     ok = esp.set_home()
     return ("OK" if ok else ("NOT_CONNECTED", 503))
 
@@ -173,7 +173,7 @@ def esp32_pos_status():
 
 @bp.route('/esp32_set_mode')
 def esp32_set_mode():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     mode = request.args.get('mode', 'track')
     if mode not in ('track', 'pos'):
         return "INVALID MODE", 400
@@ -183,20 +183,20 @@ def esp32_set_mode():
 
 @bp.route('/esp32_stop')
 def esp32_stop():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     esp.stop_motors()
     return "OK"
 
 @bp.route('/release_motors')
 def release_motors():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     esp._send("REL\n")
     return "OK"
 
 
 @bp.route('/enable_motors')
 def enable_motors():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     esp.enable_motors()
     return "OK"
 
@@ -242,7 +242,7 @@ def arduino_motor_status():
 
 @bp.route('/arduino_run')
 def arduino_run():
-    import motor_arduino as ard
+    from hardware import motor_arduino as ard
     motor_id  = int(request.args.get('id',  1))
     degrees   = float(request.args.get('deg', 90))
     max_speed = int(request.args.get('spd', state.arduino_m1_max_speed))
@@ -254,7 +254,7 @@ def arduino_run():
 @bp.route('/apply_arduino_cfg')
 def apply_arduino_cfg():
     """파라미터 설정을 JSON으로 Arduino에 1회 전송 (Bug fix: Arduino 전용 state 사용)"""
-    import motor_arduino as ard
+    from hardware import motor_arduino as ard
     ok = ard.send_config(
         dead_zone     = state.motor_dead_zone,
         max_steps     = state.motor_max_steps,
@@ -269,14 +269,14 @@ def apply_arduino_cfg():
 
 @bp.route('/arduino_estop')
 def arduino_estop():
-    import motor_arduino as ard
+    from hardware import motor_arduino as ard
     ok = ard.estop()
     return ("OK" if ok else ("NOT_CONNECTED", 503))
 
 
 @bp.route('/arduino_home')
 def arduino_home():
-    import motor_arduino as ard
+    from hardware import motor_arduino as ard
     motor_id = int(request.args.get('id', 1))
     ok = ard.home(motor_id)
     return ("OK" if ok else ("NOT_CONNECTED", 503))
@@ -285,15 +285,15 @@ def arduino_home():
 # ── 펌웨어 업로드 ──────────────────────────────────────────
 @bp.route('/upload_firmware', methods=['POST'])
 def upload_firmware():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     state.pause_reconnect = True
     esp.safe_disconnect()
     time.sleep(1)
 
     port = state.motor_port
     if not port:
-        from serial_utils import find_port
-        from motor_esp32 import _ESP32_VIDS
+        from hardware.serial_utils import find_port
+        from hardware.motor_esp32 import _ESP32_VIDS
         port = find_port(preferred_vids=_ESP32_VIDS)
         if not port:
             state.pause_reconnect = False
@@ -329,7 +329,7 @@ def upload_firmware():
 @bp.route('/firmware_mode')
 def firmware_mode():
     from flask import request, jsonify
-    import motor_esp32
+    from hardware import motor_esp32
     import state
     enable = int(request.args.get('enable', 0))
     if enable == 1:

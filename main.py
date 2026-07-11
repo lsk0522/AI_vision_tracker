@@ -4,12 +4,12 @@ import sys
 import socket
 
 from flask import Flask
-from routes import setup_routes
-import detector
-import motor_esp32
-import motor_arduino
-import state
-import cli_ui
+from web.routes import setup_routes
+from core import detector
+from hardware import motor_esp32
+from hardware import motor_arduino
+from config import state
+from core import cli_ui
 
 def get_local_ip():
     """자신의 실제 로컬 네트워크 IP를 가져옵니다."""
@@ -35,7 +35,7 @@ def _cleanup_motors():
     _cleaned_up = True
     
     # TUI가 켜져있다면 중지하여 터미널 원래 상태 복구
-    import cli_ui
+    from core import cli_ui
     cli_ui.stop_tui()
     
     print("\n[main] 종료 시그널 수신 — 모터 해제 중...")
@@ -68,9 +68,9 @@ signal.signal(signal.SIGINT,  _shutdown)   # Ctrl+C
 signal.signal(signal.SIGTERM, _shutdown)   # 프로세스 kill
 
 
-import cli_ui
+from core import cli_ui
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
 setup_routes(app)
 
 # 하드웨어 초기화 (CLI 로딩 시퀀스 내부에서 실행되는 것처럼 딜레이 적용)

@@ -1,6 +1,6 @@
 """카메라 선택·설정 라우트."""
 from flask import Blueprint, request, jsonify
-import state
+from config import state
 
 bp = Blueprint('camera', __name__)
 

@@ -14,16 +14,16 @@
 
 <br/><br/>
 
-> 고성능 객체 인식(CSRT) 알고리즘과 ESP32 스테퍼 모터 정밀 제어를 통해  
+> YOLO 객체 인식과 ESP32 스테퍼 모터 정밀 제어를 통해  
 > 움직이는 객체를 자동으로 추적하고 모니터링하는 AI 비전 트래커 프로젝트입니다.
 > 
-> **🏆 v1.5.0 업데이트 내역:**
-> - 웹 프론트엔드 전면 개편: 다크 모드(Dark Mode) 및 Glassmorphism 테마 적용
-> - Bento Box 레이아웃 및 Framer Motion 기반 롤링 텍스트 랜딩 페이지 구현
-> - React Three Fiber 3D 시뮬레이터 최적화 (컴포넌트 렌더링 분리로 프레임 드랍 해결)
-> - 2축(Pan/Tilt) 추적 하드웨어의 안전하고 안정적인 모니터링 환경 복구
+> **🏆 v2.0.0 업데이트 내역:**
+> - 프로젝트 구조 재정비: `config / core / hardware / web` 패키지 분리
+> - 대시보드 프론트엔드를 17개 ES 모듈로 리팩토링 (`web/static/js/`)
+> - 소프트웨어 리밋 전면 재작성: 복귀 보장(리밋에 걸려도 반대 방향은 항상 이동 가능)
+> - 새 작동 범위 적용: 수직(M2) ±45도, 수평(M1) 360도 (하향 시 160도 자동 제한)
 > 
-> *(이전 v1.2.0: Apple Design System 초기 도입, 조이스틱 통신 딜레이 해결 등)*
+> *(이전 v1.5.0: 다크 모드 웹 개편, 3D 시뮬레이터 최적화 / v1.2.0: Apple Design System 도입 등)*
 <br/>
 
 **👉 [📖 초보자를 위한 상세 사용자 가이드 (USER GUIDE) 보러 가기](./docs/USER_GUIDE.md)**
@@ -43,9 +43,9 @@
 - **⎋ 전역 세션 탈출**: 학습·드래그 중 언제든 ESC 키로 즉시 안전 복귀 지원.
 
 ### 🤖 지능형 객체 추적 알고리즘 (AI Tracking)
-- **CSRT 기반 객체 추적**: 드래그 한 번으로 대상을 지정하고 정밀하게 객체의 외형을 학습하여 추적.
-- **Competitive Tracking (경쟁적 복구 알고리즘)**: 화면을 벗어났거나 놓친 타겟을 전역 템플릿 매칭을 통해 스스로 다시 찾아내는 스마트 복구 로직.
-- **다중 추적 폴백 지원**: 객체 추적 중 발생할 수 있는 노이즈를 대비한 피부색/배경 마스킹 및 원형(Hough Circle) 검출 기능 내장.
+- **YOLO 기반 객체 탐지**: INT8 양자화 TFLite 모델(`best_int8.tflite`)로 매 프레임 대상을 실시간 탐지.
+- **원격 추적 오프로딩**: 라즈베리파이의 연산 부담을 줄이기 위해 노트북에서 YOLO 추론을 대신 수행하고 좌표만 전송하는 저지연 모드 지원 (`/set_target`).
+- **타겟 유실 안전 정지**: 대상을 놓치면 조준점을 즉시 화면 중앙으로 복귀시켜 모터 폭주를 방지.
 
 ### ⚙️ 고성능 하드웨어 제어 (ESP32 & DM542)
 - **부드러운 정밀 제어 (S-Curve & P-Control)**: 0 → 3000Hz 속도까지 8.0Hz/ms의 가속도로 부드럽고 강력하게 이동.
@@ -61,8 +61,8 @@
 
 ```text
 [ 웹 브라우저 (UI) ] <──(HTTP/API)──> [ Python Flask 서버 (Raspberry Pi/PC) ]
-   - 수동 조작 (조이스틱)                - 영상 처리 및 AI 추적 (OpenCV/CSRT)
-   - 모터 파라미터 설정                    - P-Control 좌표 연산
+   - 수동 조작 (조이스틱)                - 영상 처리 및 AI 추적 (YOLO/OpenCV)
+   - 모터 파라미터 설정                    - 소프트웨어 리밋 · 좌표 연산
    - 실시간 비디오 스트리밍                - 비동기 시리얼 통신 브릿지
                                            │
                                        (Serial/UART)
@@ -85,7 +85,7 @@ graph TD
     subgraph Backend_Server ["🍓 라즈베리 파이 4 (Main Controller)"]
         Server["Flask 웹 서버 (port 5000)"]
         Vision["OpenCV 영상 전처리"]
-        Track["CSRT / 템플릿 매칭 / Kalman 추적 코어"]
+        Track["YOLO(TFLite) 객체 탐지 코어"]
         Serial["UART 시리얼 송수신 (Thread-safe)"]
     end
 
@@ -112,40 +112,50 @@ graph TD
 
 ---
 
-## 🧠 지능형 추적 알고리즘 파이프라인
+## 🧠 추적 알고리즘 파이프라인
 
-단일 알고리즘의 한계를 극복하기 위해 **CSRT, Competitive Tracking, Hough Circle, Kalman Filter**를 융합하여 노이즈와 가림(Occlusion)에 강인한 추적을 실현합니다.
+경량 **YOLO INT8(TFLite)** 모델을 중심으로, 라즈베리파이 단독 추론과 노트북 원격 추론(오프로딩)을 모두 지원합니다.
 
 ```mermaid
 graph TD
-    Frame["📷 카메라 프레임"] --> Skin["YCrCb 피부색 마스크\n(손·피부 오검출 차단)"]
-    Frame --> Diff["차분 모션 마스크\n(동적 영역 집중)"]
+    Frame["📷 카메라 프레임"] --> Mode{"추적 모드"}
 
-    Skin --> CSRT{"① CSRT Tracker\nAI 기반 객체 추적"}
-    
-    CSRT -->|✅ 성공| Comp{"② Competitive Tracking\n전역 템플릿 탐색"}
-    Comp -->|압도적 일치 발견| Jump["트래커 재초기화\n(위치 점프)"]
-    Comp -->|일반 상황| Kalman["③ 칼만 필터 업데이트\n(좌표·속도 갱신)"]
-    Jump --> Kalman
-    
-    CSRT -->|❌ 실패| Hough{"④ Hough Circle 검출\n원형 검출 (폴백)"}
-    
-    Hough -->|✅ 성공| Kalman
-    Hough -->|❌ 실패| Predict{"⑤ 칼만 필터 예측\n최대 20프레임 관성"}
+    Mode -->|자동 · 로컬| YOLO["① YOLO INT8 추론\n(best_int8.tflite)"]
+    Mode -->|자동 · 원격| Remote["① 노트북 원격 추론\n(/set_target 좌표 수신)"]
 
-    Predict -->|✅ 유효| Motor["🎯 조준점 업데이트 → 모터 동작"]
-    Predict -->|⏰ 타임아웃| Lost["🔴 Target Lost"]
+    YOLO -->|검출 성공| Best["② 최고 확신도 박스 선택"]
+    Remote --> Best
 
-    Kalman --> Motor
+    Best --> Aim["③ 조준점 갱신\n(화면 중심 기준 오차 → ±160px 클램프)"]
+    YOLO -->|검출 실패| Center["🔴 조준점 중앙 복귀\n(모터 폭주 방지)"]
+
+    Aim --> Limit["④ 소프트웨어 리밋 검사\n(2D 안전 영역)"]
+    Limit --> Motor["🎯 ESP32 → 모터 구동"]
 ```
 
-| 알고리즘 | 역할 |
+| 구성 요소 | 역할 |
 |:---:|:---|
-| **YCrCb 스킨 마스크** | `Cr: 133~173 / Cb: 77~127` 범위를 차단해 대상 조작 시 손가락 오검출 방지 |
-| **CSRT Tracker** | 객체의 형태를 학습하여 변형과 회전에 강인하게 추적하는 메인 AI 엔진 |
-| **Competitive Tracking** | 객체가 시야에서 사라졌다가 다시 나타날 때, 전역 탐색(Template Matching)으로 즉각적인 재포착(Recovery) 수행 |
-| **Hough Circle** | 표면 무늬가 없는 대상의 추적 실패 시 특징점 부재를 보완하는 폴백 알고리즘 |
-| **Kalman Filter** | 20프레임 관성 예측으로 순간 가림(Occlusion) 발생 시 궤적을 예측하여 추적 유지 |
+| **YOLO INT8 (TFLite)** | 양자화된 경량 모델로 라즈베리파이에서도 실시간 객체 탐지 |
+| **원격 추적 모드** | 노트북이 YOLO 추론을 대신 수행하고 좌표만 전송 — 파이 CPU 부담 대폭 감소 |
+| **오차 클램프** | 한 프레임당 조준점 이동을 ±160px로 제한하여 급격한 모터 동작 방지 |
+| **소프트웨어 리밋** | 모터가 물리적 한계를 벗어나지 않도록 서버에서 방향별 차단·감속 |
+
+---
+
+## 🛡️ 모터 작동 범위 및 안전 리밋
+
+터렛의 물리적 파손을 막기 위해 서버(`web/routes/core.py`)에서 2차원 안전 영역을 강제합니다.
+
+| 축 | 작동 범위 | 비고 |
+|:---:|:---|:---|
+| **M2 (수직)** | 아래 **-45°** ~ 위 **+45°** | |
+| **M1 (수평)** | 기본 **360°** (±180°) | 카메라가 **-25° 아래**를 볼 때는 **160°** (±80°)로 자동 제한 (기둥 충돌 방지) |
+
+**동작 원리**
+- **방향별 차단**: 리밋을 *벗어나는* 방향만 차단하고, 범위 안으로 *되돌아오는* 방향은 어떤 경우에도 차단하지 않습니다 — 리밋(또는 관성 오버슛)에 걸려도 반대 방향으로 항상 빠져나올 수 있습니다.
+- **자동 감속(Soft Braking)**: 리밋 도달 15~20° 전부터 점진적으로 감속하되, 최소 서행 속도를 보장해 리밋 직전에 멈춘 것처럼 보이는 현상을 방지합니다.
+- **2D 결합 제한**: 수평이 ±80° 밖에 있으면 수직은 -25° 아래로 내려갈 수 없습니다 (반대 결합도 동일).
+- **사용자 리밋**: 웹 UI에서 더 좁은 리밋을 직접 설정할 수 있으며, 설정이 잘못되어 범위가 뒤집히면 자동으로 무시하고 하드웨어 한계로 복귀합니다.
 
 ---
 
@@ -199,28 +209,20 @@ $$\text{Steps} = \text{constrain}(|\text{Error}| \times \text{steps/px}, 1, \tex
 
 ```text
 📦 AI_vision_tracker
- ┣ 📂 raspi_main           # 라즈베리파이 실기 배포용 백엔드 (독립 실행 사본)
- ┣ 📂 esp32_firmware       # ESP32 C++ 펌웨어 (타이머 인터럽트 기반, OTA 펌웨어 업로드 가능)
- ┣ 📂 website              # React 프론트엔드 (3D 시뮬레이터 · 랜딩 페이지, GitHub Pages 배포)
- ┣ 📂 3D_model             # 터렛 3D 모델 원본 (obj / mtl / glb)
- ┣ 📂 routes               # Flask API 엔드포인트 라우팅 (설정, 하드웨어 통신 관리 등)
- ┣ 📂 static               # 프론트엔드 정적 파일 (script.js, style.css)
- ┣ 📂 templates            # 프론트엔드 HTML (index.html)
- ┣ 📂 learning_data        # 트래커 학습 타겟 이미지 데이터 저장소
- ┣ 📂 picture              # 캡처 이미지 서빙 디렉토리 (런타임 생성, git 미추적)
- ┣ 📂 docs                 # 문서 모음 (사용자 가이드 · 체인지로그 · 릴리즈노트)
- ┣ 📂 archive              # 이전 버전 백업 (esp32_firmware_backup, website_backup)
  ┣ 📜 main.py              # Flask 서버 진입점 및 스레드 시작
- ┣ 📜 detector.py          # YOLO 기반 객체 탐지 + 추적 알고리즘 코어
- ┣ 📜 best_int8.tflite     # YOLO INT8 양자화 모델
- ┣ 📜 camera.py            # 비디오 스트림 캡처 파이프라인
- ┣ 📜 motor_esp32.py       # ESP32 비동기 시리얼 통신 (Thread-safe, 우선순위 큐 내장)
- ┣ 📜 motor_arduino.py     # Arduino(레거시) 시리얼 통신
- ┣ 📜 remote_tracker.py    # 랩탑에서 원격으로 AI 연산을 수행하는 저지연 트래킹 클라이언트
- ┣ 📜 serial_utils.py      # 운영체제 무관 포트 자동 감지 유틸리티
- ┣ 📜 state.py             # 전역 상태(State) 및 펌웨어 버전 관리
- ┣ 📜 install.sh / start.sh / update.sh          # 라즈베리파이 설치 · 실행 · 업데이트 스크립트
- ┗ 📜 run_laptop_tracker.bat / setup_ssh_key.bat # 윈도우 원격 트래킹 · SSH 키 설정 스크립트
+ ┣ 📂 config               # 전역 상태(state.py) — 모터 좌표 · 리밋 · 펌웨어 버전 관리
+ ┣ 📂 core                 # 영상 처리 코어 — detector(YOLO) · camera · capture · cli_ui · logger
+ ┣ 📂 hardware             # 하드웨어 통신 — motor_esp32 · motor_arduino · serial_utils
+ ┣ 📂 web                  # 웹 대시보드 — routes(API) · static/js(ES 모듈 17개) · templates
+ ┣ 📂 esp32_firmware       # ESP32 C++ 펌웨어 (타이머 인터럽트 기반, 웹 UI에서 원격 업로드 가능)
+ ┣ 📂 data                 # 데이터 — models(YOLO) · learning_data · picture(캡처)
+ ┣ 📂 scripts              # 라즈베리파이 설치 · 실행 · 원격 트래킹 스크립트
+ ┣ 📂 tests                # 테스트 스크립트
+ ┣ 📂 docs                 # 문서 모음 (사용자 가이드 · 체인지로그 · 릴리즈노트 · 이미지)
+ ┣ 📂 website              # React 랜딩 페이지 (3D 시뮬레이터, GitHub Pages 배포)
+ ┣ 📂 3D_model             # 터렛 3D 모델 원본 (obj / mtl / glb)
+ ┣ 📂 raspi_main           # 라즈베리파이 실기 배포용 백엔드 (독립 실행 사본)
+ ┗ 📂 archive              # 이전 버전 백업 (esp32_firmware_backup, website_backup)
 ```
 
 ---
@@ -235,9 +237,9 @@ $$\text{Steps} = \text{constrain}(|\text{Error}| \times \text{steps/px}, 1, \tex
 
 ### 2. 의존성 패키지 설치
 ```bash
-pip install flask opencv-python opencv-contrib-python numpy pyserial
+pip install -r requirements.txt
 ```
-*(CSRT Tracker 구동을 위해 `opencv-contrib-python`이 필수이며, 이 프로젝트는 Pyright 기준 0 Error를 달성하여 완벽한 Type Hinting을 제공합니다.)*
+*(YOLO 추론을 위해 `ultralytics` 패키지가 포함되어 있습니다.)*
 
 ### 3. 서버 실행
 ```bash
@@ -246,10 +248,10 @@ python main.py
 터미널에 표시되는 로컬 IP 혹은 `http://localhost:5000` 으로 접속합니다.
 
 > [!TIP]
-> **물체 학습 및 실시간 추적 가이드**
-> 1. 웹 설정 패널에서 **'물건 학습하기'** 모드를 켜고 추적할 대상에 파란색 ROI 박스를 그립니다.
-> 2. **학습 시작**을 누르면 AI(CSRT)가 객체의 형태를 초기화하여 부드러운 추적을 시작합니다.
-> 3. 카메라 설정 탭에서 터렛의 기어비나 모터 상태에 따라 **steps/px, 최대 속도(Hz), 가속도(Hz/ms)**를 즉시 수정하며 최적의 튜닝값을 찾아보세요.
+> **실시간 추적 가이드**
+> 1. 대시보드 하단의 **AI 추적** 버튼(또는 설정 패널의 조작 모드)을 켜면 YOLO가 대상을 자동으로 탐지·추적합니다.
+> 2. 수동 제어는 가상 조이스틱으로 — 소프트웨어 리밋이 자동으로 안전 범위를 지켜줍니다.
+> 3. 모터 설정 탭에서 터렛의 기어비나 모터 상태에 따라 **steps/px, 최대 속도(Hz), 가속도(Hz/ms)**를 즉시 수정하며 최적의 튜닝값을 찾아보세요.
 
 > [!WARNING]
 > **펌웨어 불일치 주의 (v1.2.0~)**  
@@ -260,9 +262,11 @@ python main.py
 ## 🛠️ 트러블슈팅 및 튜닝 가이드
 
 - **추적이 자꾸 풀리거나 버벅일 경우**: 
-  웹 UI의 **'기기 설정'**에서 '조준점 반응 속도'를 줄이거나 대상 객체를 다시 학습시켜주세요. 타겟 주변의 조명이 지나치게 어둡거나 밝으면 인식률이 낮아질 수 있습니다.
+  웹 UI의 **'기기 설정'**에서 '조준점 반응 속도'를 줄여보세요. 타겟 주변의 조명이 지나치게 어둡거나 밝으면 인식률이 낮아질 수 있습니다. 라즈베리파이 단독 추론이 느리다면 노트북 원격 추적 모드를 사용해 보세요.
 - **모터의 속도가 너무 느리거나 과하게 빠른 경우**: 
   웹 UI의 **'모터 튜닝'** 탭에서 **최대 속도(Hz)** 및 **가속도(Hz/ms)** 를 조절하세요. 변경 사항은 즉시 ESP32 인터럽트에 반영됩니다. (DM542 권장 기본값: 3000Hz, 8.0Hz/ms)
+- **리밋 근처에서 모터가 느려지는 경우**: 
+  정상 동작입니다 — 리밋 15~20° 앞에서 자동 감속(Soft Braking)이 작동하는 것이며, 반대 방향으로는 항상 정상 속도로 움직입니다.
 
 ---
 

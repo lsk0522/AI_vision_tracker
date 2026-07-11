@@ -3,7 +3,7 @@
              joystick_dir, set_input_mode, set_device_type, reconnect, available_ports
 """
 from flask import Blueprint, Response, request, jsonify, render_template
-import state
+from config import state
 
 bp = Blueprint('core', __name__)
 
@@ -15,7 +15,7 @@ def index():
 
 @bp.route('/video')
 def video():
-    from camera import gen_frames
+    from core.camera import gen_frames
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -30,7 +30,7 @@ def click():
     state.point = [x, y]
     state.last_point = (x, y)
     if state.esp32_control_mode != "track":
-        import motor_esp32 as esp
+        from hardware import motor_esp32 as esp
         esp.set_mode("track")
     return "OK"
 
@@ -42,7 +42,7 @@ def pos():
 
 @bp.route('/capture')
 def capture():
-    from capture import save_capture
+    from core.capture import save_capture
     save_capture()
     return "OK"
 
@@ -80,7 +80,7 @@ def _sync_speed_to_esp32(speed: int):
     hz = speed * 150   # 1=150Hz(매우 느림) ~ 20=3000Hz(빠름)
     state.esp32_max_speed_hz = hz
     if state.device_type == "esp32" and state.motor_connected:
-        import motor_esp32 as esp
+        from hardware import motor_esp32 as esp
         esp.send_config("MSL", hz)
 
 
@@ -112,7 +112,7 @@ def joystick_dir():
                 return "STALE"
             state.joystick_cmd_seq = seq
 
-        import motor_esp32 as esp
+        from hardware import motor_esp32 as esp
         
         if state.esp32_control_mode != "pos":
             esp.set_mode("pos")
@@ -121,88 +121,83 @@ def joystick_dir():
             # 조이스틱에서 손을 뗌 → 즉시 정지
             esp.stop_motors()
         else:
-            # --- 파이썬 소프트웨어 리밋 (다이나믹 2D 안전 영역 + 자동 감속) ---
-            m1_e = state.esp32_pos_m1_deg
-            m2_e = state.esp32_pos_m2_deg
-            
+            # --- 파이썬 소프트웨어 리밋 (2D 안전 영역 + 자동 감속 + 복귀 보장) ---
+            # 핵심 원칙: 리밋을 '벗어나는' 방향만 차단한다.
+            # 범위 안으로 '되돌아오는' 방향은 어떤 경우에도 차단·감속하지 않으므로,
+            # 리밋(또는 오버슛으로 리밋 바깥)에 걸려도 반대 방향으로는 항상 움직일 수 있다.
             m1_p = state.get_m1_phys()
             m2_p = state.get_m2_phys()
 
-            block_y_pos = False; block_y_neg = False
-            block_x_pos = False; block_x_neg = False
             limit_reason = ""
 
-            # 1. 2D 다이나믹 하드웨어 한계 계산 (물리 각도)
-            hw_m2_max = 50.0
-            hw_m2_min = -25.0 if (m1_p > 80.0 or m1_p < -80.0) else -40.0
-            
-            hw_m1_max = 80.0 if (m2_p < -25.0) else 180.0
-            hw_m1_min = -80.0 if (m2_p < -25.0) else -180.0
+            # 1. 하드웨어 작동 범위 (물리 각도)
+            #    M2(수직): 아래 -45도 ~ 위 +45도
+            #    M1(수평): 기본 ±180도(360도), 카메라가 -25도보다 아래를 보면 ±80도(160도)
+            HW_M2_MIN, HW_M2_MAX = -45.0, 45.0
+            narrow = (m2_p < -25.0)
+            HW_M1_MIN = -80.0 if narrow else -180.0
+            HW_M1_MAX =  80.0 if narrow else  180.0
+            # 반대 방향 결합: 수평이 ±80 밖에 있으면 수직은 -25 아래로 내려갈 수 없음 (기둥 충돌 방지)
+            m2_floor = -25.0 if (m1_p > 80.0 or m1_p < -80.0) else HW_M2_MIN
 
-            # 2. 사용자 설정 리밋을 물리 각도로 변환하여 하드웨어 한계와 병합 (더 타이트한 값 적용)
-            eff_m1_max = hw_m1_max
-            eff_m1_min = hw_m1_min
+            # 2. 사용자 설정 리밋 병합 (ESP32 단위 → 물리 각도 변환 후 더 좁은 쪽 적용)
+            #    병합 결과 범위가 뒤집히면(min >= max) 사용자 리밋을 무시하고 하드웨어 한계로 복귀.
+            #    (예전 코드는 부호 처리 오류로 범위가 붕괴되면 양방향이 동시에 차단되어
+            #     리밋에 걸린 뒤 반대로도 움직일 수 없는 버그가 있었음)
+            lo1, hi1 = HW_M1_MIN, HW_M1_MAX
             if state.soft_limit_m1_max is not None:
-                usr_m1_max = state.soft_limit_m1_max / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
-                eff_m1_max = min(eff_m1_max, usr_m1_max)
+                hi1 = min(hi1, state.m1_esp_to_phys(state.soft_limit_m1_max))
             if state.soft_limit_m1_min is not None:
-                usr_m1_min = state.soft_limit_m1_min / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
-                eff_m1_min = max(eff_m1_min, usr_m1_min)
+                lo1 = max(lo1, state.m1_esp_to_phys(state.soft_limit_m1_min))
+            if lo1 >= hi1:
+                lo1, hi1 = HW_M1_MIN, HW_M1_MAX
 
-            eff_m2_max = hw_m2_max
-            eff_m2_min = hw_m2_min
-            # M2 ESP32값과 물리각도는 부호가 반대일 수 있으므로(위가 -ESP32, 아래가 +ESP32) 주의
-            # 사용자가 설정한 soft_limit_m2_min (ESP32 -6.5, 물리 50) -> 위쪽(max)
-            # 사용자가 설정한 soft_limit_m2_max (ESP32 +4.0, 물리 -40) -> 아래쪽(min)
-            if state.soft_limit_m2_min is not None:
-                # ESP32 음수 -> 물리 양수 (UP)
-                up_p = getattr(state, '_M2_PHYS_AT_UP', 50.0)
-                up_e = abs(getattr(state, '_M2_ESP32_AT_UP', -6.5))
-                usr_m2_max = -(state.soft_limit_m2_min) * (up_p / up_e) if state.soft_limit_m2_min < 0 else 0
-                eff_m2_max = min(eff_m2_max, usr_m2_max)
-            if state.soft_limit_m2_max is not None:
-                # ESP32 양수 -> 물리 음수 (DOWN)
-                dn_p = getattr(state, '_M2_PHYS_AT_DOWN', 40.0)
-                dn_e = abs(getattr(state, '_M2_ESP32_AT_DOWN', 4.0))
-                usr_m2_min = -(state.soft_limit_m2_max) * (dn_p / dn_e) if state.soft_limit_m2_max > 0 else 0
-                eff_m2_min = max(eff_m2_min, usr_m2_min)
+            lo2, hi2 = m2_floor, HW_M2_MAX
+            # M2는 ESP32 단위와 물리 각도의 부호가 반대 (위 = ESP32 음수 = 물리 양수)
+            if state.soft_limit_m2_min is not None:   # 위쪽 끝에서 저장된 사용자 리밋
+                hi2 = min(hi2, state.m2_esp_to_phys(state.soft_limit_m2_min))
+            if state.soft_limit_m2_max is not None:   # 아래쪽 끝에서 저장된 사용자 리밋
+                lo2 = max(lo2, state.m2_esp_to_phys(state.soft_limit_m2_max))
+            if lo2 >= hi2:
+                lo2, hi2 = m2_floor, HW_M2_MAX
 
-            # 3. 브레이킹 거리 설정 (이 거리 안으로 들어가면 속도가 점점 줄어듦)
+            # 3. 방향별 자동 감속 및 차단
             brake_dist_m1 = 20.0
             brake_dist_m2 = 15.0
-            max_speed = 5.0  # 조이스틱 최대 입력값 추정치
+            max_speed = 5.0   # 조이스틱 최대 입력값 추정치
+            min_creep = 0.35  # 감속 구간에서도 이 속도 밑으로는 줄이지 않음 (리밋 직전 멈춘 듯 보이는 현상 방지)
 
-            # M2 (수직) 자동 감속 및 차단
-            if y > 0: # 아래로 이동 중 (min 방향)
-                dist = m2_p - eff_m2_min
+            # M2 (수직): y > 0 = 아래(물리각 감소), y < 0 = 위(물리각 증가)
+            if y > 0:
+                dist = m2_p - lo2
                 if dist <= 0:
-                    y = 0.0; block_y_pos = True
-                    limit_reason = f"[M2 DOWN] Limit Reached ({eff_m2_min:.0f}°)"
+                    y = 0.0
+                    limit_reason = f"[M2 DOWN] Limit Reached ({lo2:.0f}°)"
                 elif dist < brake_dist_m2:
-                    y = min(y, (dist / brake_dist_m2) * max_speed)
-            elif y < 0: # 위로 이동 중 (max 방향)
-                dist = eff_m2_max - m2_p
+                    y = min(y, max(min_creep, (dist / brake_dist_m2) * max_speed))
+            elif y < 0:
+                dist = hi2 - m2_p
                 if dist <= 0:
-                    y = 0.0; block_y_neg = True
-                    limit_reason = f"[M2 UP] Limit Reached ({eff_m2_max:.0f}°)"
+                    y = 0.0
+                    limit_reason = f"[M2 UP] Limit Reached ({hi2:.0f}°)"
                 elif dist < brake_dist_m2:
-                    y = max(y, -(dist / brake_dist_m2) * max_speed)
+                    y = max(y, -max(min_creep, (dist / brake_dist_m2) * max_speed))
 
-            # M1 (수평) 자동 감속 및 차단
-            if x > 0: # 우측으로 이동 중 (max 방향)
-                dist = eff_m1_max - m1_p
+            # M1 (수평): x > 0 = 우측(물리각 증가), x < 0 = 좌측(물리각 감소)
+            if x > 0:
+                dist = hi1 - m1_p
                 if dist <= 0:
-                    x = 0.0; block_x_pos = True
-                    limit_reason = f"[M1 RIGHT] Limit Reached ({eff_m1_max:.0f}°)"
+                    x = 0.0
+                    limit_reason = f"[M1 RIGHT] Limit Reached ({hi1:.0f}°)"
                 elif dist < brake_dist_m1:
-                    x = min(x, (dist / brake_dist_m1) * max_speed)
-            elif x < 0: # 좌측으로 이동 중 (min 방향)
-                dist = m1_p - eff_m1_min
+                    x = min(x, max(min_creep, (dist / brake_dist_m1) * max_speed))
+            elif x < 0:
+                dist = m1_p - lo1
                 if dist <= 0:
-                    x = 0.0; block_x_neg = True
-                    limit_reason = f"[M1 LEFT] Limit Reached ({eff_m1_min:.0f}°)"
+                    x = 0.0
+                    limit_reason = f"[M1 LEFT] Limit Reached ({lo1:.0f}°)"
                 elif dist < brake_dist_m1:
-                    x = max(x, -(dist / brake_dist_m1) * max_speed)
+                    x = max(x, -max(min_creep, (dist / brake_dist_m1) * max_speed))
 
             state.active_limit_msg = limit_reason
             # -----------------------------------------------------------------
@@ -221,7 +216,7 @@ def set_input_mode():
     mode = request.args.get('mode', 'joystick')
     if mode in ('joystick', 'pointer', 'auto'):
         state.input_mode = mode
-        import motor_esp32 as esp
+        from hardware import motor_esp32 as esp
         if mode == 'auto':
             state.control_mode = 'auto'
             if state.motor_connected:
@@ -250,7 +245,7 @@ def set_device_type():
 
 @bp.route('/reconnect_esp32')
 def reconnect_esp32():
-    import motor_esp32 as esp
+    from hardware import motor_esp32 as esp
     port = request.args.get('port', None)
     try:
         esp.safe_disconnect()

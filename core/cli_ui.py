@@ -8,8 +8,8 @@ from rich.live import Live
 from rich.text import Text
 from rich.status import Status
 
-import state
-import logger
+from config import state
+from core import logger
 
 # 원래 터미널 화면 출력을 보장하기 위해 sys.__stdout__ 사용
 # (logger.py에서 sys.stdout을 가로채더라도 화면을 그릴 수 있어야 함)

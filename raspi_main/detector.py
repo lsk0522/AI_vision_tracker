@@ -4,7 +4,7 @@ import threading
 import numpy as np
 from ultralytics import YOLO
 
-import state
+from config import state
 
 # ── 칼만 필터 ────────────────────────────────────────────
 class KalmanTracker:

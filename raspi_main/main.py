@@ -4,12 +4,12 @@ import sys
 import socket
 
 from flask import Flask
-from routes import setup_routes
-import detector
-import motor_esp32
-import motor_arduino
-import state
-import cli_ui
+from web.routes import setup_routes
+from core import detector
+from hardware import motor_esp32
+from hardware import motor_arduino
+from config import state
+from core import cli_ui
 
 def get_local_ip():
     """자신의 실제 로컬 네트워크 IP를 가져옵니다."""
@@ -68,9 +68,9 @@ signal.signal(signal.SIGINT,  _shutdown)   # Ctrl+C
 signal.signal(signal.SIGTERM, _shutdown)   # 프로세스 kill
 
 
-import cli_ui
+from core import cli_ui
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
 setup_routes(app)
 
 # 하드웨어 초기화 (CLI 로딩 시퀀스 내부에서 실행되는 것처럼 딜레이 적용)

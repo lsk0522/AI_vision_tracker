@@ -2,7 +2,7 @@
 import subprocess
 import time
 from flask import Blueprint, request, jsonify
-import state
+from config import state
 
 bp = Blueprint('motor', __name__)
 

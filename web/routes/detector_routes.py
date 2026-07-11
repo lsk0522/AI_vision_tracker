@@ -4,15 +4,15 @@ import base64
 import cv2
 from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import safe_join
-import state
+from config import state
 
 bp = Blueprint('detector', __name__)
 
 
 # ── 갤러리 ────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = os.path.dirname(BASE_DIR)
-PICTURE_DIR = os.path.join(PROJECT_DIR, "picture")
+PROJECT_DIR = os.path.dirname(os.path.dirname(BASE_DIR))
+PICTURE_DIR = os.path.join(PROJECT_DIR, "data", "picture")
 
 @bp.route('/captures')
 def list_captures():

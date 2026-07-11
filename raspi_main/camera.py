@@ -6,7 +6,7 @@ import cv2
 import time
 import threading
 import numpy as np
-import state
+from config import state
 import sys
 
 # ── Camera configuration state ─────────────────────────────────────

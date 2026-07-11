@@ -9,8 +9,8 @@ import json
 import threading
 import time
 
-import state
-from serial_utils import find_port
+from config import state
+from hardware.serial_utils import find_port
 
 try:
     import serial

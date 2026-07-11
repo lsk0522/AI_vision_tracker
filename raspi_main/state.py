@@ -97,24 +97,32 @@ _M2_PHYS_AT_DOWN   = 40.0    # 아래 물리 각도
 # M2 TUI 표시용 간이 평균 배율 ((6.5+4.0)/(50+40))
 _M2_PHYS_TO_ESP32 = (abs(_M2_ESP32_AT_UP) + abs(_M2_ESP32_AT_DOWN)) / (_M2_PHYS_AT_UP + _M2_PHYS_AT_DOWN)
 
-def get_m1_phys():
-    """현재 M1 ESP32값을 물리 각도(도)로 변환"""
-    return esp32_pos_m1_deg / _M1_PHYS_TO_ESP32
+def m1_esp_to_phys(esp_val):
+    """M1 ESP32값 → 물리 각도(도)"""
+    return esp_val / _M1_PHYS_TO_ESP32
 
-def get_m2_phys():
-    """현재 M2 ESP32값을 물리 각도(도)로 변환 (+는 위, -는 아래)"""
-    esp_val = esp32_pos_m2_deg
+def m2_esp_to_phys(esp_val):
+    """M2 ESP32값 → 물리 각도(도). ESP32 음수 = 물리 위(+), ESP32 양수 = 물리 아래(-)"""
     if esp_val < 0:
         return -esp_val * (_M2_PHYS_AT_UP / abs(_M2_ESP32_AT_UP))
     elif esp_val > 0:
         return -esp_val * (_M2_PHYS_AT_DOWN / abs(_M2_ESP32_AT_DOWN))
     return 0.0
 
-# 리밋 값 (ESP32 단위, None = 리밋 없음)
-soft_limit_m1_min = -22.7                # M1 좌측 한계  (물리 -180도)
-soft_limit_m1_max =  22.7                # M1 우측 한계  (물리 +180도)
-soft_limit_m2_min = _M2_ESP32_AT_UP      # = -6.5  (위 한계: ESP32 값은 음수가 더 작은 시점)
-soft_limit_m2_max = _M2_ESP32_AT_DOWN    # = +4.5  (아래 한계: ESP32 값은 양수가 더 큰 시점)
+def get_m1_phys():
+    """현재 M1 ESP32값을 물리 각도(도)로 변환"""
+    return m1_esp_to_phys(esp32_pos_m1_deg)
+
+def get_m2_phys():
+    """현재 M2 ESP32값을 물리 각도(도)로 변환 (+는 위, -는 아래)"""
+    return m2_esp_to_phys(esp32_pos_m2_deg)
+
+# 사용자 설정 리밋 값 (ESP32 단위, None = 미설정 → 하드웨어 한계만 적용)
+# 하드웨어 작동 범위(M2 ±45도, M1 ±180/±80도)는 routes/core.py의 joystick_dir에서 관리
+soft_limit_m1_min = None                 # M1 좌측 한계
+soft_limit_m1_max = None                 # M1 우측 한계
+soft_limit_m2_min = None                 # M2 위쪽 한계 (ESP32 음수 방향)
+soft_limit_m2_max = None                 # M2 아래쪽 한계 (ESP32 양수 방향)
 
 # 방향 감지용 이전 위치 (코드가 자동 갱신 -- 수정 불필요)
 _prev_m1_pos = 0.0

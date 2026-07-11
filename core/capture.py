@@ -3,10 +3,10 @@ import os
 import time
 from typing import Tuple
 
-import state
+from config import state
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PICTURE_DIR = os.path.join(BASE_DIR, "picture")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PICTURE_DIR = os.path.join(BASE_DIR, "data", "picture")
 
 if not os.path.exists(PICTURE_DIR):
     try:

@@ -1,10 +1,14 @@
+
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+model_path = os.path.join(BASE_DIR, "data", "models", "best_int8.tflite")
 import cv2
 import time
 import threading
 import numpy as np
 from ultralytics import YOLO
 
-import state
+from config import state
 
 # ── 칼만 필터 ────────────────────────────────────────────
 class KalmanTracker:
@@ -51,7 +55,7 @@ class KalmanTracker:
 # ── YOLO 트래커 (단독 AI) ──────────────────────────────────
 class YOLOTracker:
     def __init__(self):
-        self.model = YOLO('best_int8.tflite', task='detect')
+        self.model = YOLO(model_path, task='detect')
         self.active = False
         
     def start_tracking(self):
@@ -128,7 +132,6 @@ def _run():
             ball = None
 
             if state.control_mode == 'auto':
-                import time
                 # 원격(노트북) 추적 모드일 경우 로컬 YOLO 중단 (CPU 절약)
                 if getattr(state, 'remote_tracking_last_time', 0.0) > 0 and (time.time() - state.remote_tracking_last_time < 2.0):
                     _yolo.stop_tracking()
