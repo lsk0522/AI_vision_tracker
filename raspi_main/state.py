@@ -7,6 +7,7 @@ current_frame = None
 speed        = 5
 control_mode = "manual"
 input_mode   = "joystick"   # "joystick" | "pointer" | "auto"
+target_type  = "other"      # "ball" or "other" (객체 종류 특화 추적용)
 
 # 볼/추적 상태
 ball             = None    # 검출된 공 정보 (dict)

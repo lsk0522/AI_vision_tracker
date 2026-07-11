@@ -11,7 +11,6 @@ bp = Blueprint('detector', __name__)
 
 # ── 갤러리 ────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# routes is a subdirectory, so we go up one level
 PROJECT_DIR = os.path.dirname(BASE_DIR)
 PICTURE_DIR = os.path.join(PROJECT_DIR, "picture")
 
@@ -73,75 +72,26 @@ def tracking_status():
     )
 
 
-# ── ORB 학습 ─────────────────────────────────────────────
-@bp.route('/start_learning')
-def start_learning():
-    import detector as det
-    det.start_learning()
-    state.tracking_mode = "custom"
-    return "OK"
-
-
-@bp.route('/learning_progress')
-def learning_progress():
-    import detector as det
-    prog = det.get_learning_progress()
-    # 썸네일은 학습 완료 시 detector._finish()에서 파일로 저장됨.
-    # 여기서는 저장된 파일의 base64만 1회 읽어서 반환 (재인코딩 없음).
-    thumb = None
-    if prog == 100:
-        thumb_path = os.path.join("learning_data", "target_thumbnail.jpg")
-        if os.path.exists(thumb_path):
-            try:
-                with open(thumb_path, 'rb') as f:
-                    thumb = "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
-            except Exception:
-                pass
-    return jsonify(progress=prog, done=(prog == 100),
-                   thumbnail=thumb, failed=state.learning_failed)
-
-
-@bp.route('/target_thumbnail')
-def target_thumbnail():
-    return send_from_directory('learning_data', 'target_thumbnail.jpg')
-
-
-@bp.route('/clear_target')
-def clear_target():
-    import detector as det
-    det.reset_tracker()
-    state.tracking_mode = "none"
-    thumb_path = os.path.join("learning_data", "target_thumbnail.jpg")
-    if os.path.exists(thumb_path):
-        try:
-            os.remove(thumb_path)
-        except Exception:
-            pass
-    return "OK"
-
-
-# ── 학습 영역 ─────────────────────────────────────────────
-@bp.route('/set_learn_zone')
-def set_learn_zone():
-    import detector as det
-    x = int(float(request.args.get('x', 170)))
-    y = int(float(request.args.get('y', 90)))
-    w = int(float(request.args.get('w', 300)))
-    h = int(float(request.args.get('h', 300)))
-    det.set_learn_zone(x, y, w, h)
-    return jsonify(x=x, y=y, w=w, h=h)
-
-
-@bp.route('/get_learn_zone')
-def get_learn_zone():
-    import detector as det
-    x, y, w, h = det.get_learn_zone()
-    return jsonify(x=x, y=y, w=w, h=h)
-
-
-@bp.route('/add_learning')
-def add_learning():
-    import detector as det
-    n = int(request.args.get('n', 20))
-    det.start_learning(n_samples=n)
-    return "OK"
+@bp.route('/set_target', methods=['GET', 'POST'])
+def set_target():
+    """노트북 등 외부(원격) 기기에서 YOLO 검출 결과를 받아오는 엔드포인트"""
+    import time
+    tx = request.args.get('tx', type=int)
+    ty = request.args.get('ty', type=int)
+    
+    if tx is not None and ty is not None:
+        state.remote_tracking_last_time = time.time()
+        state.ball = {
+            "cx": tx,
+            "cy": ty,
+            "x": tx - 10,
+            "y": ty - 10,
+            "w": 20,
+            "h": 20,
+            "conf": 1.0,
+            "predicted": False,
+            "detector": "remote"
+        }
+        state.ball_lost = False
+    
+    return jsonify({"status": "ok"})

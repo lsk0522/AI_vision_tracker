@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="turret_diagram.png" width="450" alt="Turret 3D Model" />
+<img src="docs/assets/turret_diagram.png" width="450" alt="Turret 3D Model" />
 
 <br/>
 
@@ -26,7 +26,7 @@
 > *(이전 v1.2.0: Apple Design System 초기 도입, 조이스틱 통신 딜레이 해결 등)*
 <br/>
 
-**👉 [📖 초보자를 위한 상세 사용자 가이드 (USER GUIDE) 보러 가기](./USER_GUIDE.md)**
+**👉 [📖 초보자를 위한 상세 사용자 가이드 (USER GUIDE) 보러 가기](./docs/USER_GUIDE.md)**
 
 <br/>
 
@@ -199,17 +199,28 @@ $$\text{Steps} = \text{constrain}(|\text{Error}| \times \text{steps/px}, 1, \tex
 
 ```text
 📦 AI_vision_tracker
+ ┣ 📂 raspi_main           # 라즈베리파이 실기 배포용 백엔드 (독립 실행 사본)
  ┣ 📂 esp32_firmware       # ESP32 C++ 펌웨어 (타이머 인터럽트 기반, OTA 펌웨어 업로드 가능)
+ ┣ 📂 website              # React 프론트엔드 (3D 시뮬레이터 · 랜딩 페이지, GitHub Pages 배포)
+ ┣ 📂 3D_model             # 터렛 3D 모델 원본 (obj / mtl / glb)
+ ┣ 📂 routes               # Flask API 엔드포인트 라우팅 (설정, 하드웨어 통신 관리 등)
  ┣ 📂 static               # 프론트엔드 정적 파일 (script.js, style.css)
  ┣ 📂 templates            # 프론트엔드 HTML (index.html)
  ┣ 📂 learning_data        # 트래커 학습 타겟 이미지 데이터 저장소
+ ┣ 📂 picture              # 캡처 이미지 서빙 디렉토리 (런타임 생성, git 미추적)
+ ┣ 📂 docs                 # 문서 모음 (사용자 가이드 · 체인지로그 · 릴리즈노트)
+ ┣ 📂 archive              # 이전 버전 백업 (esp32_firmware_backup, website_backup)
  ┣ 📜 main.py              # Flask 서버 진입점 및 스레드 시작
- ┣ 📜 routes.py            # API 엔드포인트 라우팅 (설정, 하드웨어 통신 관리 등)
- ┣ 📜 detector.py          # OpenCV 객체 추적, 경쟁적 탐색 복구 알고리즘 코어
+ ┣ 📜 detector.py          # YOLO 기반 객체 탐지 + 추적 알고리즘 코어
+ ┣ 📜 best_int8.tflite     # YOLO INT8 양자화 모델
  ┣ 📜 camera.py            # 비디오 스트림 캡처 파이프라인
  ┣ 📜 motor_esp32.py       # ESP32 비동기 시리얼 통신 (Thread-safe, 우선순위 큐 내장)
+ ┣ 📜 motor_arduino.py     # Arduino(레거시) 시리얼 통신
+ ┣ 📜 remote_tracker.py    # 랩탑에서 원격으로 AI 연산을 수행하는 저지연 트래킹 클라이언트
  ┣ 📜 serial_utils.py      # 운영체제 무관 포트 자동 감지 유틸리티
- ┗ 📜 state.py             # 전역 상태(State) 및 펌웨어 버전 관리
+ ┣ 📜 state.py             # 전역 상태(State) 및 펌웨어 버전 관리
+ ┣ 📜 install.sh / start.sh / update.sh          # 라즈베리파이 설치 · 실행 · 업데이트 스크립트
+ ┗ 📜 run_laptop_tracker.bat / setup_ssh_key.bat # 윈도우 원격 트래킹 · SSH 키 설정 스크립트
 ```
 
 ---

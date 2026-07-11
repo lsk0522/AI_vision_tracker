@@ -262,7 +262,7 @@ def _run():
                 ty = 240
             # ----------------------------------------------------
 
-            if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1 or (now - last_t_time > 0.03):
+            if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
                 _send(f"T:{tx}:{ty}\n")
                 last_x, last_y = tx, ty
                 last_t_time = now

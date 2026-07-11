@@ -99,7 +99,7 @@ function drawCrosshair(){
     // 학습 모드 중이거나 ROI 영역을 선택하고 있을 때는 조준점(도트·링·브래킷) 전부 숨김
     const roiOverlayEl = document.getElementById("roi-select-overlay");
     const isROIOpen = roiOverlayEl && (roiOverlayEl.style.display === "block");
-    if (!learningMode && !isROIOpen) {
+    if (!learningMode && !isROIOpen && controlMode !== "auto") {
 
         // ── 중심 도트 ──────────────────────────
         ctx.shadowBlur  = 10;
