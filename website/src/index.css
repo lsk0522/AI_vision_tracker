@@ -54,6 +54,15 @@ body {
   left: 0 !important;
 }
 
+/* 기술 스택 마퀴 스트립 */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
 /* Grid Pattern Background for Features Section */
 .bg-grid-pattern {
   background-image: 
