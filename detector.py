@@ -156,26 +156,32 @@ def _run():
             time.sleep(0.1)
 
         if state.control_mode == "auto":
+            if frame is not None:
+                frame_h, frame_w = frame.shape[:2]
+                center_x, center_y = frame_w // 2, frame_h // 2
+            else:
+                center_x, center_y = 320, 240
+
             if state.ball and frame is not None:
                 # 칼만 필터 예측값이 아닌 실제 객체 좌표를 그대로 사용합니다.
                 tx = state.ball["cx"]
                 ty = state.ball["cy"]
-                
-                err_x = tx - 320
-                err_y = ty - 240
-                
+
+                err_x = tx - center_x
+                err_y = ty - center_y
+
                 # 객체를 정확하게 쳐다보게 하기 위해 P-gain(0.60)을 제거하여 100% 이동하도록 합니다.
-                
+
                 # 한 번에 꺾이는 최대 범위를 160픽셀로 확장 (더 빠르고 정확하게)
                 err_x = max(-160, min(160, err_x))
                 err_y = max(-160, min(160, err_y))
-                
-                state.point[0] = int(320 + err_x)
-                state.point[1] = int(240 + err_y)
+
+                state.point[0] = int(center_x + err_x)
+                state.point[1] = int(center_y + err_y)
             else:
                 # 타겟을 놓치면 모터가 폭주하지 않도록 즉시 정지(중앙 좌표)
-                state.point[0] = 320
-                state.point[1] = 240
+                state.point[0] = center_x
+                state.point[1] = center_y
 def start():
     global _thread
     _thread = threading.Thread(target=_run, daemon=True)
