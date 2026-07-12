@@ -97,9 +97,16 @@ def main():
     print("✅ 원격 추적이 시작되었습니다! 창을 닫으려면 'q'를 누르세요.")
     
     # 비동기로 API 요청을 보내기 위한 함수 (메인 루프 프레임 드랍 방지)
+    _paused = False
+    _paused_lock = threading.Lock()
+    
     def send_target(tx, ty):
+        nonlocal _paused
         try:
-            requests.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=0.1)
+            resp = requests.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=0.3)
+            data = resp.json()
+            with _paused_lock:
+                _paused = (data.get("status") == "paused")
         except requests.exceptions.RequestException:
             pass
             
@@ -107,6 +114,30 @@ def main():
     start_time = time.time()
     
     while True:
+        # 라즈베리파이가 수동(조이스틱) 모드이면 YOLO 연산을 완전히 중단하고 대기
+        with _paused_lock:
+            is_paused = _paused
+        if is_paused:
+            # 주기적으로 상태 확인만 함 (auto 모드로 돌아왔는지)
+            try:
+                resp = requests.get(f"{raspi_url}/set_target?tx=0&ty=0", timeout=0.3)
+                data = resp.json()
+                with _paused_lock:
+                    _paused = (data.get("status") == "paused")
+            except:
+                pass
+            
+            # 화면에 PAUSED 표시
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                cv2.putText(frame, "PAUSED (Joystick mode)", (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+                cv2.imshow("Laptop AI Tracker", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+            time.sleep(1)
+            continue
+        
         ret, frame = cap.read()
         if not ret or frame is None:
             time.sleep(0.01)

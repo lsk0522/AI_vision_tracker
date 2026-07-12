@@ -75,6 +75,10 @@ def tracking_status():
 @bp.route('/set_target', methods=['GET', 'POST'])
 def set_target():
     """노트북 등 외부(원격) 기기에서 YOLO 검출 결과를 받아오는 엔드포인트"""
+    # 수동(조이스틱) 모드일 때는 즉시 거부하여 Flask 부하를 없앰
+    if state.control_mode != "auto":
+        return jsonify({"status": "paused"})
+    
     import time
     tx = request.args.get('tx', type=int)
     ty = request.args.get('ty', type=int)
