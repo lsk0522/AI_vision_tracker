@@ -56,10 +56,41 @@ def main():
         print("❌ 40초 이상 연결에 실패했습니다. 라즈베리파이 IP나 서버 상태를 확인해주세요.")
         return
         
+    # 비동기로 프레임 읽기 (버퍼 밀림 방지 및 지연 최소화)
+    class VideoCaptureThread:
+        def __init__(self, url):
+            self.cap = cv2.VideoCapture(url)
+            self.ret, self.frame = self.cap.read()
+            self.running = True
+            self.lock = threading.Lock()
+            self.thread = threading.Thread(target=self.update, daemon=True)
+            self.thread.start()
+
+        def update(self):
+            while self.running:
+                ret, frame = self.cap.read()
+                if ret:
+                    with self.lock:
+                        self.ret = ret
+                        self.frame = frame
+                else:
+                    # 끊겼을 때 재연결 로직
+                    time.sleep(1)
+                    self.cap.open(video_stream_url)
+
+        def read(self):
+            with self.lock:
+                return self.ret, (self.frame.copy() if self.frame is not None else None)
+
+        def release(self):
+            self.running = False
+            self.thread.join()
+            self.cap.release()
+
     print("[노트북] 서버 확인 완료! 비디오 스트림을 엽니다...")
-    cap = cv2.VideoCapture(video_stream_url)
+    cap = VideoCaptureThread(video_stream_url)
     
-    if not cap.isOpened():
+    if not cap.cap.isOpened():
         print("❌ 비디오 스트림을 열 수 없습니다.")
         return
         
@@ -77,14 +108,12 @@ def main():
     
     while True:
         ret, frame = cap.read()
-        if not ret:
-            print("스트림이 끊겼습니다. 재연결을 시도합니다...")
-            time.sleep(1)
-            cap.open(video_stream_url)
+        if not ret or frame is None:
+            time.sleep(0.01)
             continue
             
-        # 노트북의 빠른 CPU/GPU로 YOLO 연산 (초당 수십 프레임)
-        results = model(frame, verbose=False, conf=0.25)
+        # 노트북의 빠른 CPU/GPU로 YOLO 연산 (입력 해상도 320으로 줄여서 속도 대폭 향상)
+        results = model(frame, verbose=False, conf=0.25, imgsz=320)
         
         target_found = False
         if len(results) > 0 and len(results[0].boxes) > 0:
