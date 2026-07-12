@@ -107,8 +107,11 @@ _cap = _open_camera(_camera_index)
 
 # ── Background Capture Thread ──────────────────────────────────────
 _thread_running = True
+_latest_jpeg = None
+_latest_jpeg_lock = threading.Lock()
+
 def _capture_loop():
-    global _cap
+    global _cap, _latest_jpeg
     while _thread_running:
         frame = None
         with _cap_lock:
@@ -122,6 +125,12 @@ def _capture_loop():
             if state.flip_enabled:
                 frame = cv2.flip(frame, 1)
             state.current_frame = frame.copy()
+            
+            # 여기서 한 번만 인코딩 (CPU 부하 획기적 감소)
+            ret, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            if ret:
+                with _latest_jpeg_lock:
+                    _latest_jpeg = buf.tobytes()
         else:
             time.sleep(0.01)
 
@@ -182,31 +191,26 @@ def list_cameras(max_test=6):
 
 def gen_frames():
     """Yield MJPEG frames for the /video stream (Optimized)."""
-    last_id = None
-    last_buffer = None
+    last_jpeg = None
     while True:
-        frame = state.current_frame
+        with _latest_jpeg_lock:
+            jpeg = _latest_jpeg
 
-        if frame is None:
+        if jpeg is None:
             time.sleep(0.033)
-            if last_buffer is None:
-                frame = _get_fallback_frame()
-                _, last_buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
+            # 폴백용 (초기화 전)
+            frame = _get_fallback_frame()
+            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            jpeg = buf.tobytes()
+            
+        if jpeg == last_jpeg:
+            time.sleep(0.01)
         else:
-            frame_id = id(frame)
-            if frame_id == last_id and last_buffer is not None:
-                time.sleep(0.01)
-            else:
-                last_id = frame_id
-                ret, last_buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
-                if not ret:
-                    continue
-
-        if last_buffer is not None:
+            last_jpeg = jpeg
             yield (
                 b'--frame\r\n'
                 b'Content-Type: image/jpeg\r\n\r\n' +
-                last_buffer.tobytes() +
+                jpeg +
                 b'\r\n'
             )
 
