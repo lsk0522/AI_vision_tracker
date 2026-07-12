@@ -214,7 +214,7 @@ async function syncPos(){
     // 자동 모드일 때는 모터 위치(/pos)로 크로스헤어를 옮기지 않음
     if (state.controlMode === "auto") return;
 
-    // 조이스틱을 사용 중이거나 최근에 사용했다면 서버 위치로 덮어쓰지 않음 (튀는 현상 방지)
+    // 조이스틱을 사용 중이거나 최근에 사용했다면 아예 서버에 요청조차 하지 않음 (네트워크 트래픽 낭비 방지)
     if (state.joystickTouchId !== null || (Date.now() - state.lastSync < 300)) return;
 
     try {
@@ -236,7 +236,7 @@ setInterval(() => {
     if (state.controlMode !== "auto") {
         syncPos();
     }
-}, 50);
+}, 200);
 
 /* ==========================================
    메인 드로잉 및 조준점 갱신 루프 (delta-time lerp)
