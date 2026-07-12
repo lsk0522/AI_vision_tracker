@@ -114,6 +114,11 @@ def joystick_dir():
 
         import motor_esp32 as esp
         
+        # 조이스틱을 건드리면 즉시 수동(manual) 모드로 전환하여 무거운 AI(YOLO) 연산을 중지시킵니다.
+        if state.control_mode != "manual":
+            state.control_mode = "manual"
+            state.input_mode = "joystick"
+        
         if state.esp32_control_mode != "pos":
             esp.set_mode("pos")
             
