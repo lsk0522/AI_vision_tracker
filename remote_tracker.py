@@ -112,8 +112,8 @@ def main():
             time.sleep(0.01)
             continue
             
-        # 노트북의 빠른 CPU/GPU로 YOLO 연산 (입력 해상도 320으로 줄여서 속도 대폭 향상)
-        results = model(frame, verbose=False, conf=0.25, imgsz=320)
+        # 노트북의 빠른 CPU/GPU로 YOLO 연산 (TFLite 모델은 고정 해상도를 사용하므로 imgsz 제거)
+        results = model(frame, verbose=False, conf=0.25)
         
         target_found = False
         if len(results) > 0 and len(results[0].boxes) > 0:
