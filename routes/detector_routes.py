@@ -108,5 +108,9 @@ def set_target():
             "detector": "remote"
         }
         state.ball_lost = False
-    
+        # state.point 갱신은 detector 루프가 단독으로 담당한다.
+        # (여기서 원본 tx/ty 를 직접 넣으면 프레임 중심 보정이 빠져 detector 루프가 계산한
+        #  320:240 기준 좌표와 경쟁하며 값이 튄다 — remote_tracking_last_time 만 갱신하면
+        #  detector 루프가 다음 틱(≤10ms)에 스무딩까지 적용해 안전하게 반영한다.)
+
     return jsonify({"status": "ok"})

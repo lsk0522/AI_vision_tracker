@@ -159,6 +159,7 @@ def _run():
             # ── 좌표 연산 및 모터 타겟 제어 ──────────────────────
             # (원래 루프 외곽에 뒹굴던 블록을 안쪽으로 가져와 100% 실행 보장)
             if state.control_mode == "auto":
+                # 오차 계산은 실제 프레임 중심 기준으로 (카메라 해상도 무관하게 정확)
                 center_x, center_y = 320, 240
                 frame = state.current_frame
                 if frame is not None:
@@ -188,21 +189,25 @@ def _run():
                     err_x = max(-160, min(160, err_x))
                     err_y = max(-160, min(160, err_y))
 
-                    state.point[0] = int(center_x + err_x)
-                    state.point[1] = int(center_y + err_y)
+                    # ESP32 펌웨어의 T 명령과 소프트리밋은 화면 중심을 320:240 으로 고정 가정한다.
+                    # 따라서 실제 프레임 크기와 무관하게 오차를 320:240 기준으로 재구성해서 보낸다.
+                    # (프레임 기준으로 그대로 보내면 640x480 이 아닌 해상도에서 부호가 한쪽으로 쏠려
+                    #  모터가 반대로 안 움직이거나 리밋에 막힘 — 조이스틱은 이 변환을 안 거쳐 정상)
+                    state.point[0] = 320 + int(err_x)
+                    state.point[1] = 240 + int(err_y)
                     try:
                         with open("/tmp/debug_T.log", "a") as f:
                             f.write(f"[{time.time():.3f}] Detector updated point to: {state.point[0]}:{state.point[1]} (from ball {tx}:{ty})\n")
                     except:
                         pass
                 else:
-                    # 타겟을 놓치면 스무딩 상태 초기화 및 즉시 정지(중앙 좌표)
+                    # 타겟을 놓치면 스무딩 상태 초기화 및 즉시 정지(펌웨어 기준 중앙 = 오차 0)
                     if hasattr(state, '_smooth_tx'):
                         delattr(state, '_smooth_tx')
                     if hasattr(state, '_smooth_ty'):
                         delattr(state, '_smooth_ty')
-                    state.point[0] = center_x
-                    state.point[1] = center_y
+                    state.point[0] = 320
+                    state.point[1] = 240
 
         except Exception as e:
             try:
