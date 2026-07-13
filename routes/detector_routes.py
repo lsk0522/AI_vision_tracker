@@ -1,12 +1,35 @@
 """검출·학습·갤러리 라우트."""
 import os
 import base64
+import time
+import threading
 import cv2
 from flask import Blueprint, request, jsonify, send_from_directory
 from werkzeug.utils import safe_join
 import state
 
 bp = Blueprint('detector', __name__)
+
+
+# ── 타겟 소실 감시 워치독 ─────────────────────────────────
+# set_target이 1초 이상 호출되지 않으면 state.point를 중앙으로 리셋 → 모터 정지
+def _target_loss_watchdog():
+    while True:
+        time.sleep(0.2)
+        try:
+            if state.control_mode == "auto":
+                last = getattr(state, 'remote_tracking_last_time', 0.0)
+                if last > 0 and (time.time() - last) > 1.0:
+                    state.point[0] = 320
+                    state.point[1] = 240
+                    if hasattr(state, '_smooth_tx'):
+                        state._smooth_tx = 320.0
+                        state._smooth_ty = 240.0
+        except:
+            pass
+
+_watchdog = threading.Thread(target=_target_loss_watchdog, daemon=True)
+_watchdog.start()
 
 
 # ── 갤러리 ────────────────────────────────────────────────
