@@ -114,12 +114,13 @@ def _run():
     while True:
         try:
             frame = state.current_frame
-            if frame is None:
-                time.sleep(0.01)
+            # 수동 모드이면서 frame이 None인 경우에만 대기 (AI 모드일 때는 카메라 부재와 상관없이 동작 가능하도록)
+            if state.control_mode != 'auto' and frame is None:
+                time.sleep(0.05)
                 continue
 
-            frame_id = id(frame)
-            if frame_id == last_id:
+            frame_id = id(frame) if frame is not None else None
+            if frame_id is not None and frame_id == last_id:
                 time.sleep(0.005)
                 continue
             last_id = frame_id
