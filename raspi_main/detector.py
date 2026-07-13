@@ -131,7 +131,11 @@ def _run():
                 # 라즈베리파이 자체 YOLO는 CPU를 마비시켜 조이스틱 전환 렉을 유발하므로 비활성화하고,
                 # 오직 노트북 원격 추적 결과(state.ball)만 사용하여 동작하도록 최적화합니다.
                 _yolo.stop_tracking()
-                ball = state.ball
+                import time
+                if getattr(state, 'remote_tracking_last_time', 0.0) > 0 and (time.time() - state.remote_tracking_last_time < 2.0):
+                    ball = state.ball
+                else:
+                    ball = None
             else:
                 _yolo.stop_tracking()
                 ball = None
