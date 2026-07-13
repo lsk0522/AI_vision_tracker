@@ -154,6 +154,7 @@ def _run():
                 if state.ball:
                     tx = state.ball["cx"]
                     ty = state.ball["cy"]
+                    print(f"[DEBUG_PI] Target ball: cx={tx}, cy={ty}")
 
                     # 1차 저주파 필터 (Alpha = 0.28) 적용하여 뚝뚝 끊기는 좌표를 부드럽게 보간
                     alpha = 0.28
