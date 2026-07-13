@@ -105,10 +105,7 @@ def joystick_dir():
         # 조이스틱에서 손을 뗌 → 즉시 정지
         esp.stop_motors()
     else:
-        # 상태 불일치 방지: 조이스틱을 움직이기 시작할 때(state.motor_moving이 False일 때) 
-        # ESP32가 확실하게 POS 모드인지 검증하고 각인시킵니다.
-        if not getattr(state, 'motor_moving', False):
-            esp.set_mode("pos")
+
 
         # --- 파이썬 소프트웨어 리밋 (다이나믹 2D 안전 영역 + 자동 감속) ---
         m1_e = state.esp32_pos_m1_deg
