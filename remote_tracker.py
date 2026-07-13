@@ -124,11 +124,34 @@ def main():
 
     threading.Thread(target=poll_status, daemon=True).start()
     
-    def send_target(tx, ty):
-        try:
-            requests.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=0.2)
-        except requests.exceptions.RequestException:
-            pass
+    # HTTP 커넥션 재사용(Keep-Alive)을 위한 세션 객체와 동기화 조건 변수 선언
+    session = requests.Session()
+    latest_target = None
+    target_lock = threading.Lock()
+    target_cond = threading.Condition()
+
+    def target_sender_loop():
+        global _paused
+        while True:
+            target = None
+            with target_cond:
+                target_cond.wait()
+                with target_lock:
+                    target = latest_target
+                    latest_target = None
+            
+            if target:
+                tx, ty = target
+                try:
+                    # Keep-Alive 커넥션을 통해 초고속으로 전송 (타임아웃 1.0초로 넉넉하게 지정)
+                    resp = session.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=1.0)
+                    if resp.status_code != 200:
+                        print(f"[노트북] 전송 실패: 상태 코드 {resp.status_code}")
+                except requests.exceptions.RequestException as e:
+                    print(f"[노트북] 전송 오류: {e}")
+
+    # 전송용 백그라운드 싱글 스레드 기동 (소켓 고갈 원천 차단)
+    threading.Thread(target=target_sender_loop, daemon=True).start()
             
     frame_count = 0
     start_time = time.time()
@@ -189,8 +212,11 @@ def main():
                 tx = (x1 + x2) // 2
                 ty = (y1 + y2) // 2
                 
-                # 라즈베리파이로 목표 좌표 전송 (비동기)
-                threading.Thread(target=send_target, args=(tx, ty), daemon=True).start()
+                # 라즈베리파이로 목표 좌표 전송 (싱글 스레드 + 세션 재사용 방식)
+                with target_lock:
+                    latest_target = (tx, ty)
+                with target_cond:
+                    target_cond.notify_all()
                 
                 # 화면에 BBox 그리기
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
