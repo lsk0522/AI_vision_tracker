@@ -108,13 +108,25 @@ def main():
     _paused = False
     _paused_lock = threading.Lock()
     
-    def send_target(tx, ty):
+    # 0.3초마다 라즈베리파이의 모드(Auto/Manual) 상태를 체크하는 독립 스레드
+    # YOLO 검출 성공 여부와 상관없이 모드 전환을 즉각 감지하기 위함
+    def poll_status():
         nonlocal _paused
+        while True:
+            try:
+                resp = requests.get(f"{raspi_url}/tracking_status", timeout=0.5)
+                data = resp.json()
+                with _paused_lock:
+                    _paused = (data.get("control_mode") != "auto")
+            except:
+                pass
+            time.sleep(0.3)
+
+    threading.Thread(target=poll_status, daemon=True).start()
+    
+    def send_target(tx, ty):
         try:
-            resp = requests.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=0.3)
-            data = resp.json()
-            with _paused_lock:
-                _paused = (data.get("status") == "paused")
+            requests.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=0.2)
         except requests.exceptions.RequestException:
             pass
             
@@ -132,21 +144,6 @@ def main():
                 cap.release()
                 cap = None
             
-            # 1초마다 auto 모드로 돌아왔는지 확인
-            try:
-                resp = requests.get(f"{raspi_url}/set_target?tx=0&ty=0", timeout=0.3)
-                data = resp.json()
-                with _paused_lock:
-                    _paused = (data.get("status") == "paused")
-                    if not _paused:
-                        # auto 모드로 복귀 → 비디오 스트림 재연결
-                        print("[노트북] Auto 모드 복귀 → 비디오 스트림 재연결 중...")
-                        cap = VideoCaptureThread(video_stream_url)
-                        time.sleep(0.5)
-                        print("[노트북] 재연결 완료! AI 추적을 재개합니다.")
-            except:
-                pass
-            
             # PAUSED 표시 (검은 화면)
             blank = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(blank, "PAUSED (Joystick mode)", (120, 230), 
@@ -156,9 +153,16 @@ def main():
             cv2.imshow("Laptop AI Tracker", blank)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-            time.sleep(1)
+            time.sleep(0.2)
             continue
         
+        # auto 모드로 복귀 시 비디오 스트림 재연결
+        if cap is None:
+            print("[노트북] Auto 모드 복귀 → 비디오 스트림 재연결 중...")
+            cap = VideoCaptureThread(video_stream_url)
+            time.sleep(0.5)
+            print("[노트북] 재연결 완료! AI 추적을 재개합니다.")
+            
         ret, frame = cap.read()
         if not ret or frame is None:
             time.sleep(0.01)
