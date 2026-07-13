@@ -109,15 +109,20 @@ def main():
     # YOLO 검출 성공 여부와 상관없이 모드 전환을 즉각 감지하기 위함
     def poll_status():
         nonlocal _paused
+        consecutive_failures = 0
         while True:
             try:
-                resp = requests.get(f"{raspi_url}/tracking_status", timeout=0.5)
+                resp = requests.get(f"{raspi_url}/tracking_status", timeout=2.0)
                 data = resp.json()
+                consecutive_failures = 0
                 with _paused_lock:
                     _paused = (data.get("control_mode") != "auto")
             except:
-                with _paused_lock:
-                    _paused = True  # 통신 예외 발생 시 부하 방지 및 안전을 위해 일시정지 상태로 간주
+                consecutive_failures += 1
+                # 3회 연속 실패(약 1초간 응답 끊김) 시에만 오프라인으로 판정해 안전 정지
+                if consecutive_failures >= 3:
+                    with _paused_lock:
+                        _paused = True
             time.sleep(0.3)
 
     threading.Thread(target=poll_status, daemon=True).start()
