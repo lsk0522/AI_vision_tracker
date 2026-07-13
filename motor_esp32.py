@@ -273,6 +273,11 @@ def _run():
             # ----------------------------------------------------
 
             if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
+                try:
+                    with open("/tmp/debug_T.log", "a") as f:
+                        f.write(f"[{time.time():.3f}] Sent T command: T:{tx}:{ty}\n")
+                except:
+                    pass
                 _send(f"T:{tx}:{ty}\n")
                 last_x, last_y = tx, ty
                 last_t_time = now
@@ -297,6 +302,11 @@ def set_mode(mode: str):
         connected = _ser is not None and _ser.is_open
     if connected:
         cmd = "MODE:TRACK" if mode == "track" else "MODE:POS"
+        try:
+            with open("/tmp/debug_T.log", "a") as f:
+                f.write(f"[{time.time():.3f}] Sent MODE command: {cmd}\n")
+        except:
+            pass
         _send(cmd + "\n")
         state.esp32_control_mode = mode
 
