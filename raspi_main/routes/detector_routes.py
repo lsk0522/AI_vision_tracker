@@ -99,25 +99,28 @@ def set_target():
 
         # ── 가상 포인트 스무딩 (Virtual Point Smoothing) ──────────
         # 화면 중앙(320,240)의 보이지 않는 가상 점이 타겟을 부드럽게 추적합니다.
-        # 1.5초 이상 갱신이 없었으면(타겟 소실 후 재획득) 가상 점을 중앙으로 리셋합니다.
+        # 1.0초 이상 갱신이 없었으면(타겟 소실 후 재획득) 가상 점을 중앙으로 리셋합니다.
         last_time = getattr(state, 'remote_tracking_last_time', 0.0)
-        gap = (now - last_time) > 1.5
+        gap = (now - last_time) > 1.0
 
         if gap or not hasattr(state, '_smooth_tx'):
             state._smooth_tx = 320.0
             state._smooth_ty = 240.0
+            # 갭 발생 시 모터 즉시 정지 (중앙 = 에러 없음)
+            state.point[0] = 320
+            state.point[1] = 240
 
-        # 1차 저주파 필터 (Alpha=0.28) — 가상 점이 타겟을 서서히 따라감
-        alpha = 0.28
+        # 1차 저주파 필터 (Alpha=0.12) — 가상 점이 타겟을 천천히 따라감
+        alpha = 0.12
         state._smooth_tx += alpha * (float(tx) - state._smooth_tx)
         state._smooth_ty += alpha * (float(ty) - state._smooth_ty)
 
-        # 에러 클램핑: 중앙에서 ±160px 이내로 제한 (급격한 모터 움직임 방지)
+        # 에러 클램핑: 중앙에서 ±80px 이내로 제한 (급발진 방지)
         center_x, center_y = 320, 240
         err_x = state._smooth_tx - center_x
         err_y = state._smooth_ty - center_y
-        err_x = max(-160.0, min(160.0, err_x))
-        err_y = max(-160.0, min(160.0, err_y))
+        err_x = max(-80.0, min(80.0, err_x))
+        err_y = max(-80.0, min(80.0, err_y))
 
         state.point[0] = int(center_x + err_x)
         state.point[1] = int(center_y + err_y)
