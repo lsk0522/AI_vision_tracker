@@ -109,22 +109,8 @@ def reset_tracker():
 
 # ── 메인 루프 ────────────────────────────────────────────
 def _run():
-    last_id = None
-
     while True:
         try:
-            frame = state.current_frame
-            # 수동 모드이면서 frame이 None인 경우에만 대기 (AI 모드일 때는 카메라 부재와 상관없이 동작 가능하도록)
-            if state.control_mode != 'auto' and frame is None:
-                time.sleep(0.05)
-                continue
-
-            frame_id = id(frame) if frame is not None else None
-            if frame_id is not None and frame_id == last_id:
-                time.sleep(0.005)
-                continue
-            last_id = frame_id
-
             # ── 추적 ────────────────────────────────────────
             ball = None
 
@@ -149,50 +135,55 @@ def _run():
             else:
                 state.ball      = None
                 state.ball_lost = False
-                
+
+            # ── 좌표 연산 및 모터 타겟 제어 ──────────────────────
+            # (원래 루프 외곽에 뒹굴던 블록을 안쪽으로 가져와 100% 실행 보장)
+            if state.control_mode == "auto":
+                center_x, center_y = 320, 240
+                frame = state.current_frame
+                if frame is not None:
+                    frame_h, frame_w = frame.shape[:2]
+                    center_x, center_y = frame_w // 2, frame_h // 2
+
+                if state.ball:
+                    tx = state.ball["cx"]
+                    ty = state.ball["cy"]
+
+                    # 1차 저주파 필터 (Alpha = 0.28) 적용하여 뚝뚝 끊기는 좌표를 부드럽게 보간
+                    alpha = 0.28
+                    if not hasattr(state, '_smooth_tx'):
+                        state._smooth_tx = float(tx)
+                        state._smooth_ty = float(ty)
+                    else:
+                        state._smooth_tx = state._smooth_tx + alpha * (float(tx) - state._smooth_tx)
+                        state._smooth_ty = state._smooth_ty + alpha * (float(ty) - state._smooth_ty)
+
+                    tx_smooth = state._smooth_tx
+                    ty_smooth = state._smooth_ty
+
+                    err_x = tx_smooth - center_x
+                    err_y = ty_smooth - center_y
+
+                    # 한 번에 꺾이는 최대 범위를 160픽셀로 확장 (더 빠르고 정확하게)
+                    err_x = max(-160, min(160, err_x))
+                    err_y = max(-160, min(160, err_y))
+
+                    state.point[0] = int(center_x + err_x)
+                    state.point[1] = int(center_y + err_y)
+                else:
+                    # 타겟을 놓치면 스무딩 상태 초기화 및 즉시 정지(중앙 좌표)
+                    if hasattr(state, '_smooth_tx'):
+                        delattr(state, '_smooth_tx')
+                    if hasattr(state, '_smooth_ty'):
+                        delattr(state, '_smooth_ty')
+                    state.point[0] = center_x
+                    state.point[1] = center_y
+
         except Exception as e:
             print(f"[Detector] Exception in _run loop: {e}")
-            time.sleep(0.1)
-
-        if state.control_mode == "auto":
-            center_x, center_y = 320, 240
-            if frame is not None:
-                frame_h, frame_w = frame.shape[:2]
-                center_x, center_y = frame_w // 2, frame_h // 2
-
-            if state.ball:
-                tx = state.ball["cx"]
-                ty = state.ball["cy"]
-
-                # 1차 저주파 필터 (Alpha = 0.28) 적용하여 뚝뚝 끊기는 좌표를 부드럽게 보간
-                alpha = 0.28
-                if not hasattr(state, '_smooth_tx'):
-                    state._smooth_tx = float(tx)
-                    state._smooth_ty = float(ty)
-                else:
-                    state._smooth_tx = state._smooth_tx + alpha * (float(tx) - state._smooth_tx)
-                    state._smooth_ty = state._smooth_ty + alpha * (float(ty) - state._smooth_ty)
-
-                tx_smooth = state._smooth_tx
-                ty_smooth = state._smooth_ty
-
-                err_x = tx_smooth - center_x
-                err_y = ty_smooth - center_y
-
-                # 한 번에 꺾이는 최대 범위를 160픽셀로 확장 (더 빠르고 정확하게)
-                err_x = max(-160, min(160, err_x))
-                err_y = max(-160, min(160, err_y))
-
-                state.point[0] = int(center_x + err_x)
-                state.point[1] = int(center_y + err_y)
-            else:
-                # 타겟을 놓치면 스무딩 상태 초기화 및 즉시 정지(중앙 좌표)
-                if hasattr(state, '_smooth_tx'):
-                    delattr(state, '_smooth_tx')
-                if hasattr(state, '_smooth_ty'):
-                    delattr(state, '_smooth_ty')
-                state.point[0] = center_x
-                state.point[1] = center_y
+        
+        # 10ms 대기를 주어 CPU 점유율을 제어하고 GIL 양보
+        time.sleep(0.01)
 def start():
     global _thread
     _thread = threading.Thread(target=_run, daemon=True)
