@@ -230,10 +230,10 @@ async function syncPos(){
 }
 
 // 자동 모드: 50ms마다 위치 동기화 (추적 반응성)
-// 수동 모드: 동기화 안 함 — 클라이언트가 직접 위치 관리
+// 수동 포인터 모드에서만 모터의 물리적 위치 표시를 위해 /pos를 호출하고,
+// 조이스틱 및 자동 모드일 때는 네트워크 낭비를 방지하기 위해 호출하지 않습니다.
 setInterval(() => {
-    // 자동 모드: syncPos(/pos)는 사용하지 않음 (모터 각도 추종 금지)
-    if (state.controlMode !== "auto") {
+    if (state.inputMode === "pointer") {
         syncPos();
     }
 }, 200);
