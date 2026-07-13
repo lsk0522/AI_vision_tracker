@@ -85,120 +85,139 @@ def _sync_speed_to_esp32(speed: int):
 
 
 
+import threading
+_joystick_lock = threading.Lock()
+
 @bp.route('/joystick_dir')
 def joystick_dir():
     # 미세조정을 위해 float로 받음 (script.js에서 -1.0 ~ 1.0 전송)
     x = float(request.args.get('x', 0))
     y = float(request.args.get('y', 0))
+    seq = int(request.args.get('seq', 0))
 
-    import motor_esp32 as esp
-    
-    # 조이스틱을 건드리면 즉시 수동(manual) 모드로 전환하여 무거운 AI(YOLO) 연산을 중지시킵니다.
-    if state.control_mode != "manual":
-        state.control_mode = "manual"
-        state.input_mode = "joystick"
-    
-    if state.esp32_control_mode != "pos":
-        esp.set_mode("pos")
+    if seq > 0:
+        # Lock을 얻기 전에 "가장 최근에 서버에 도착한 요청 번호"를 전역 변수에 기록
+        current_latest = getattr(state, 'latest_received_seq', 0)
+        if seq > current_latest:
+            state.latest_received_seq = seq
+
+    with _joystick_lock:
+        if seq > 0:
+            # 락을 얻고 나서 확인했을 때, 내 번호보다 더 높은 번호의 요청이 이미 도착해있다면 나는 과거 명령이므로 무시
+            if seq < getattr(state, 'latest_received_seq', 0):
+                return "STALE"
             
-    if abs(x) < 0.001 and abs(y) < 0.001:
-        # 조이스틱에서 손을 뗌 → 즉시 정지
-        esp.stop_motors()
-    else:
+            last_seq = getattr(state, 'joystick_cmd_seq', 0)
+            if seq <= last_seq:
+                return "STALE"
+            state.joystick_cmd_seq = seq
 
-
-        # --- 파이썬 소프트웨어 리밋 (다이나믹 2D 안전 영역 + 자동 감속) ---
-        m1_e = state.esp32_pos_m1_deg
-        m2_e = state.esp32_pos_m2_deg
+        import motor_esp32 as esp
         
-        m1_p = state.get_m1_phys()
-        m2_p = state.get_m2_phys()
-
-        block_y_pos = False; block_y_neg = False
-        block_x_pos = False; block_x_neg = False
-        limit_reason = ""
-
-        # 1. 2D 다이나믹 하드웨어 한계 계산 (물리 각도)
-        hw_m2_max = 50.0
-        hw_m2_min = -25.0 if (m1_p > 80.0 or m1_p < -80.0) else -40.0
+        # 조이스틱을 건드리면 즉시 수동(manual) 모드로 전환하여 무거운 AI(YOLO) 연산을 중지시킵니다.
+        if state.control_mode != "manual":
+            state.control_mode = "manual"
+            state.input_mode = "joystick"
         
-        hw_m1_max = 80.0 if (m2_p < -25.0) else 180.0
-        hw_m1_min = -80.0 if (m2_p < -25.0) else -180.0
-
-        # 2. 사용자 설정 리밋을 물리 각도로 변환하여 하드웨어 한계와 병합 (더 타이트한 값 적용)
-        eff_m1_max = hw_m1_max
-        eff_m1_min = hw_m1_min
-        if state.soft_limit_m1_max is not None:
-            usr_m1_max = state.soft_limit_m1_max / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
-            eff_m1_max = min(eff_m1_max, usr_m1_max)
-        if state.soft_limit_m1_min is not None:
-            usr_m1_min = state.soft_limit_m1_min / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
-            eff_m1_min = max(eff_m1_min, usr_m1_min)
-
-        eff_m2_max = hw_m2_max
-        eff_m2_min = hw_m2_min
-        # M2 ESP32값과 물리각도는 부호가 반대일 수 있으므로(위가 -ESP32, 아래가 +ESP32) 주의
-        # 사용자가 설정한 soft_limit_m2_min (ESP32 -6.5, 물리 50) -> 위쪽(max)
-        # 사용자가 설정한 soft_limit_m2_max (ESP32 +4.0, 물리 -40) -> 아래쪽(min)
-        if state.soft_limit_m2_min is not None:
-            # ESP32 음수 -> 물리 양수 (UP)
-            up_p = getattr(state, '_M2_PHYS_AT_UP', 50.0)
-            up_e = abs(getattr(state, '_M2_ESP32_AT_UP', -6.5))
-            usr_m2_max = -(state.soft_limit_m2_min) * (up_p / up_e) if state.soft_limit_m2_min < 0 else 0
-            eff_m2_max = min(eff_m2_max, usr_m2_max)
-        if state.soft_limit_m2_max is not None:
-            # ESP32 양수 -> 물리 음수 (DOWN)
-            dn_p = getattr(state, '_M2_PHYS_AT_DOWN', 40.0)
-            dn_e = abs(getattr(state, '_M2_ESP32_AT_DOWN', 4.0))
-            usr_m2_min = -(state.soft_limit_m2_max) * (dn_p / dn_e) if state.soft_limit_m2_max > 0 else 0
-            eff_m2_min = max(eff_m2_min, usr_m2_min)
-
-        # 3. 브레이킹 거리 설정 (이 거리 안으로 들어가면 속도가 점점 줄어듦)
-        brake_dist_m1 = 20.0
-        brake_dist_m2 = 15.0
-        max_speed = 5.0  # 조이스틱 최대 입력값 추정치
-
-        # M2 (수직) 자동 감속 및 차단
-        if y > 0: # 아래로 이동 중 (min 방향)
-            dist = m2_p - eff_m2_min
-            if dist <= 0:
-                y = 0.0; block_y_pos = True
-                limit_reason = f"[M2 DOWN] Limit Reached ({eff_m2_min:.0f}°)"
-            elif dist < brake_dist_m2:
-                y = min(y, (dist / brake_dist_m2) * max_speed)
-        elif y < 0: # 위로 이동 중 (max 방향)
-            dist = eff_m2_max - m2_p
-            if dist <= 0:
-                y = 0.0; block_y_neg = True
-                limit_reason = f"[M2 UP] Limit Reached ({eff_m2_max:.0f}°)"
-            elif dist < brake_dist_m2:
-                y = max(y, -(dist / brake_dist_m2) * max_speed)
-
-        # M1 (수평) 자동 감속 및 차단
-        if x > 0: # 우측으로 이동 중 (max 방향)
-            dist = eff_m1_max - m1_p
-            if dist <= 0:
-                x = 0.0; block_x_pos = True
-                limit_reason = f"[M1 RIGHT] Limit Reached ({eff_m1_max:.0f}°)"
-            elif dist < brake_dist_m1:
-                x = min(x, (dist / brake_dist_m1) * max_speed)
-        elif x < 0: # 좌측으로 이동 중 (min 방향)
-            dist = m1_p - eff_m1_min
-            if dist <= 0:
-                x = 0.0; block_x_neg = True
-                limit_reason = f"[M1 LEFT] Limit Reached ({eff_m1_min:.0f}°)"
-            elif dist < brake_dist_m1:
-                x = max(x, -(dist / brake_dist_m1) * max_speed)
-
-        state.active_limit_msg = limit_reason
-        # -----------------------------------------------------------------
-
+        if state.esp32_control_mode != "pos":
+            esp.set_mode("pos")
+                
         if abs(x) < 0.001 and abs(y) < 0.001:
+            # 조이스틱에서 손을 뗌 → 즉시 정지
             esp.stop_motors()
         else:
-            # 순수 조그(Velocity) 제어 방식: 목표 위치를 보내는 대신 "속도 방향" 자체를 전송합니다.
-            state.motor_moving = True
-            esp._send(f"JOG {x:.3f} {y:.3f}\n")
+            # --- 파이썬 소프트웨어 리밋 (다이나믹 2D 안전 영역 + 자동 감속) ---
+            m1_e = state.esp32_pos_m1_deg
+            m2_e = state.esp32_pos_m2_deg
+            
+            m1_p = state.get_m1_phys()
+            m2_p = state.get_m2_phys()
+
+            block_y_pos = False; block_y_neg = False
+            block_x_pos = False; block_x_neg = False
+            limit_reason = ""
+
+            # 1. 2D 다이나믹 하드웨어 한계 계산 (물리 각도)
+            hw_m2_max = 50.0
+            hw_m2_min = -25.0 if (m1_p > 80.0 or m1_p < -80.0) else -40.0
+            
+            hw_m1_max = 80.0 if (m2_p < -25.0) else 180.0
+            hw_m1_min = -80.0 if (m2_p < -25.0) else -180.0
+
+            # 2. 사용자 설정 리밋을 물리 각도로 변환하여 하드웨어 한계와 병합 (더 타이트한 값 적용)
+            eff_m1_max = hw_m1_max
+            eff_m1_min = hw_m1_min
+            if state.soft_limit_m1_max is not None:
+                usr_m1_max = state.soft_limit_m1_max / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
+                eff_m1_max = min(eff_m1_max, usr_m1_max)
+            if state.soft_limit_m1_min is not None:
+                usr_m1_min = state.soft_limit_m1_min / getattr(state, '_M1_PHYS_TO_ESP32', 0.1261)
+                eff_m1_min = max(eff_m1_min, usr_m1_min)
+
+            eff_m2_max = hw_m2_max
+            eff_m2_min = hw_m2_min
+            # M2 ESP32값과 물리각도는 부호가 반대일 수 있으므로(위가 -ESP32, 아래가 +ESP32) 주의
+            # 사용자가 설정한 soft_limit_m2_min (ESP32 -6.5, 물리 50) -> 위쪽(max)
+            # 사용자가 설정한 soft_limit_m2_max (ESP32 +4.0, 물리 -40) -> 아래쪽(min)
+            if state.soft_limit_m2_min is not None:
+                # ESP32 음수 -> 물리 양수 (UP)
+                up_p = getattr(state, '_M2_PHYS_AT_UP', 50.0)
+                up_e = abs(getattr(state, '_M2_ESP32_AT_UP', -6.5))
+                usr_m2_max = -(state.soft_limit_m2_min) * (up_p / up_e) if state.soft_limit_m2_min < 0 else 0
+                eff_m2_max = min(eff_m2_max, usr_m2_max)
+            if state.soft_limit_m2_max is not None:
+                # ESP32 양수 -> 물리 음수 (DOWN)
+                dn_p = getattr(state, '_M2_PHYS_AT_DOWN', 40.0)
+                dn_e = abs(getattr(state, '_M2_ESP32_AT_DOWN', 4.0))
+                usr_m2_min = -(state.soft_limit_m2_max) * (dn_p / dn_e) if state.soft_limit_m2_max > 0 else 0
+                eff_m2_min = max(eff_m2_min, usr_m2_min)
+
+            # 3. 브레이킹 거리 설정 (이 거리 안으로 들어가면 속도가 점점 줄어듦)
+            brake_dist_m1 = 20.0
+            brake_dist_m2 = 15.0
+            max_speed = 5.0  # 조이스틱 최대 입력값 추정치
+
+            # M2 (수직) 자동 감속 및 차단
+            if y > 0: # 아래로 이동 중 (min 방향)
+                dist = m2_p - eff_m2_min
+                if dist <= 0:
+                    y = 0.0; block_y_pos = True
+                    limit_reason = f"[M2 DOWN] Limit Reached ({eff_m2_min:.0f}°)"
+                elif dist < brake_dist_m2:
+                    y = min(y, (dist / brake_dist_m2) * max_speed)
+            elif y < 0: # 위로 이동 중 (max 방향)
+                dist = eff_m2_max - m2_p
+                if dist <= 0:
+                    y = 0.0; block_y_neg = True
+                    limit_reason = f"[M2 UP] Limit Reached ({eff_m2_max:.0f}°)"
+                elif dist < brake_dist_m2:
+                    y = max(y, -(dist / brake_dist_m2) * max_speed)
+
+            # M1 (수평) 자동 감속 및 차단
+            if x > 0: # 우측으로 이동 중 (max 방향)
+                dist = eff_m1_max - m1_p
+                if dist <= 0:
+                    x = 0.0; block_x_pos = True
+                    limit_reason = f"[M1 RIGHT] Limit Reached ({eff_m1_max:.0f}°)"
+                elif dist < brake_dist_m1:
+                    x = min(x, (dist / brake_dist_m1) * max_speed)
+            elif x < 0: # 좌측으로 이동 중 (min 방향)
+                dist = m1_p - eff_m1_min
+                if dist <= 0:
+                    x = 0.0; block_x_neg = True
+                    limit_reason = f"[M1 LEFT] Limit Reached ({eff_m1_min:.0f}°)"
+                elif dist < brake_dist_m1:
+                    x = max(x, -(dist / brake_dist_m1) * max_speed)
+
+            state.active_limit_msg = limit_reason
+            # -----------------------------------------------------------------
+
+            if abs(x) < 0.001 and abs(y) < 0.001:
+                esp.stop_motors()
+            else:
+                # 순수 조그(Velocity) 제어 방식: 목표 위치를 보내는 대신 "속도 방향" 자체를 전송합니다.
+                state.motor_moving = True
+                esp._send(f"JOG {x:.3f} {y:.3f}\n")
             
     return "OK"
 
