@@ -2,7 +2,10 @@ import cv2
 import time
 import threading
 import numpy as np
-from ultralytics import YOLO
+try:
+    from ultralytics import YOLO
+except ImportError:
+    YOLO = None
 
 import state
 
@@ -51,7 +54,10 @@ class KalmanTracker:
 # ── YOLO 트래커 (단독 AI) ──────────────────────────────────
 class YOLOTracker:
     def __init__(self):
-        self.model = YOLO('best_int8.tflite', task='detect')
+        if YOLO is not None:
+            self.model = YOLO('best_int8.tflite', task='detect')
+        else:
+            self.model = None
         self.active = False
         
     def start_tracking(self):
@@ -61,7 +67,7 @@ class YOLOTracker:
         self.active = False
         
     def track(self, frame):
-        if not self.active:
+        if not self.active or self.model is None:
             return None
             
         results = self.model(frame, verbose=False, conf=0.25)
