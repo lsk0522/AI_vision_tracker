@@ -217,6 +217,7 @@ def set_input_mode():
             if state.motor_connected:
                 if mode == 'joystick':
                     esp.set_mode("pos")
+                    state.esp32_control_mode = "pending_pos"  # 첫 조이스틱 입력 시 모드를 확실하게 보장하기 위해 펜딩 상태로 기록
                     # 트래킹 모드나 다른 동작 후 조이스틱 모드로 돌아올 때,
                     # 가상 타겟이 엉뚱한 곳에 남아있어 모터가 순간이동(스냅)하는 것을 방지합니다.
                     state.last_queued_target_m1 = state.esp32_pos_m1_deg
