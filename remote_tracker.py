@@ -4,6 +4,7 @@ import requests
 import argparse
 import os
 import threading
+import numpy as np
 from ultralytics import YOLO
 
 def main():
@@ -114,25 +115,38 @@ def main():
     start_time = time.time()
     
     while True:
-        # 라즈베리파이가 수동(조이스틱) 모드이면 YOLO 연산을 완전히 중단하고 대기
+        # 라즈베리파이가 수동(조이스틱) 모드이면 비디오 스트림까지 완전 해제
         with _paused_lock:
             is_paused = _paused
         if is_paused:
-            # 주기적으로 상태 확인만 함 (auto 모드로 돌아왔는지)
+            # 비디오 스트림 연결을 완전히 끊어서 라즈베리파이 부하를 0으로 만듦
+            if cap is not None:
+                print("[노트북] 조이스틱 모드 감지 → 비디오 스트림 해제 (라즈베리파이 부하 제거)")
+                cap.release()
+                cap = None
+            
+            # 1초마다 auto 모드로 돌아왔는지 확인
             try:
                 resp = requests.get(f"{raspi_url}/set_target?tx=0&ty=0", timeout=0.3)
                 data = resp.json()
                 with _paused_lock:
                     _paused = (data.get("status") == "paused")
+                    if not _paused:
+                        # auto 모드로 복귀 → 비디오 스트림 재연결
+                        print("[노트북] Auto 모드 복귀 → 비디오 스트림 재연결 중...")
+                        cap = VideoCaptureThread(video_stream_url)
+                        time.sleep(0.5)
+                        print("[노트북] 재연결 완료! AI 추적을 재개합니다.")
             except:
                 pass
             
-            # 화면에 PAUSED 표시
-            ret, frame = cap.read()
-            if ret and frame is not None:
-                cv2.putText(frame, "PAUSED (Joystick mode)", (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
-                cv2.imshow("Laptop AI Tracker", frame)
+            # PAUSED 표시 (검은 화면)
+            blank = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(blank, "PAUSED (Joystick mode)", (120, 230), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 165, 255), 2)
+            cv2.putText(blank, "Waiting for Auto mode...", (140, 270), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (128, 128, 128), 1)
+            cv2.imshow("Laptop AI Tracker", blank)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             time.sleep(1)
