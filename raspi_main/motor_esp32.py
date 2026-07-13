@@ -267,8 +267,9 @@ def _run():
                 last_x, last_y = tx, ty
                 last_t_time = now
 
-        # POS 주기 요청 (60ms)
-        if now - last_pos_req > 0.06:
+        # POS 주기 요청 (track 모드에서는 60ms, pos/manual 모드에서는 200ms로 조절하여 시리얼 부하 감소)
+        pos_interval = 0.06 if state.esp32_control_mode == "track" else 0.20
+        if now - last_pos_req > pos_interval:
             _send("POS\n")
             last_pos_req = now
 
