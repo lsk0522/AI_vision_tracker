@@ -238,7 +238,7 @@ def set_input_mode():
             if state.motor_connected:
                 if mode == 'joystick':
                     esp.set_mode("pos")
-                    state.esp32_control_mode = "pending_pos"  # 첫 조이스틱 입력 시 모드를 확실하게 보장하기 위해 펜딩 상태로 기록
+                    state.esp32_control_mode = "pos"
                     # 조이스틱 모드로 복귀할 때는 사용자가 설정한 속도 슬라이더 값(speed * 150)으로 복구합니다.
                     hz = int(state.speed * 150)
                     esp.send_config("MSL", hz)
