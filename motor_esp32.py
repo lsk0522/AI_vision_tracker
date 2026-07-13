@@ -273,11 +273,6 @@ def _run():
                 # ----------------------------------------------------
 
                 if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
-                    try:
-                        with open("/tmp/debug_T.log", "a") as f:
-                            f.write(f"[{time.time():.3f}] Sent T command: T:{tx}:{ty}\n")
-                    except:
-                        pass
                     _send(f"T:{tx}:{ty}\n")
                     last_x, last_y = tx, ty
                     last_t_time = now
@@ -290,13 +285,7 @@ def _run():
 
             time.sleep(0.002)
         except Exception as e:
-            try:
-                import traceback
-                tb = traceback.format_exc()
-                with open("/tmp/debug_T.log", "a") as f:
-                    f.write(f"[{time.time():.3f}] EXCEPTION IN _run: {e}\n{tb}\n")
-            except:
-                pass
+            print(f"[esp32] _run 루프 오류: {e}")
             time.sleep(1.0)
 
 
@@ -311,11 +300,6 @@ def set_mode(mode: str):
         connected = _ser is not None and _ser.is_open
     if connected:
         cmd = "MODE:TRACK" if mode == "track" else "MODE:POS"
-        try:
-            with open("/tmp/debug_T.log", "a") as f:
-                f.write(f"[{time.time():.3f}] Sent MODE command: {cmd}\n")
-        except:
-            pass
         _send(cmd + "\n")
         state.esp32_control_mode = mode
 
@@ -359,7 +343,8 @@ def stop_motors():
     state.motor_moving = False
     _send("JOG 0.0 0.0\n")  # JOG 모드 확실히 종료
     _send("S\n")            # 혹시 모를 관성 강제 정지
-    print("\n[esp32] 🛑 조이스틱 정지 명령(JOG 0 0 + S) 전송됨! (즉시 멈춰야 정상)\n")
+    # (주의: 여기서 print 하지 말 것 — 조이스틱을 놓을 때마다, 리밋에 막혀 있을 땐
+    #  80ms마다 호출되어 TUI 콘솔로 출력이 쏟아지며 라즈베리파이 CPU를 잡아먹는다)
     _abort_event.set()
     while not _move_queue.empty():
         try:

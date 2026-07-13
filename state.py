@@ -124,31 +124,3 @@ active_limit_msg = ""
 
 # 원격 추적 플래그 (노트북 오프로딩 시 로컬 YOLO 중단)
 remote_tracking = False
-
-import sys
-import traceback
-import time
-
-class StateModule(object):
-    def __init__(self, original_module):
-        self.original_module = original_module
-        
-    def __getattr__(self, name):
-        return getattr(self.original_module, name)
-        
-    def __setattr__(self, name, value):
-        if name == 'original_module':
-            super(StateModule, self).__setattr__(name, value)
-            return
-            
-        if name in ('control_mode', 'input_mode'):
-            try:
-                tb = "".join(traceback.format_stack())
-                with open("/tmp/debug_T.log", "a") as f:
-                    f.write(f"[{time.time():.3f}] {name} changed to {value}. Traceback:\n{tb}\n")
-            except:
-                pass
-                
-        setattr(self.original_module, name, value)
-
-sys.modules[__name__] = StateModule(sys.modules[__name__])

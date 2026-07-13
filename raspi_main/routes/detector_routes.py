@@ -100,34 +100,33 @@ def set_target():
     """노트북 등 외부(원격) 기기에서 YOLO 검출 결과를 받아오는 엔드포인트"""
     # 수동(조이스틱) 모드일 때는 즉시 거부하여 Flask 부하를 없앰
     if state.control_mode != "auto":
-        try:
-            with open("/tmp/debug_T.log", "a") as f:
-                f.write(f"[{time.time():.3f}] set_target rejected (control_mode={state.control_mode})\n")
-        except:
-            pass
         return jsonify({"status": "paused"})
 
     tx = request.args.get('tx', type=int)
     ty = request.args.get('ty', type=int)
-    
-    try:
-        with open("/tmp/debug_T.log", "a") as f:
-            f.write(f"[{time.time():.3f}] set_target received: tx={tx}, ty={ty}\n")
-    except:
-        pass
-        
+
     if tx is not None and ty is not None:
         now = time.time()
 
         # ── 가상 포인트 스무딩 (Virtual Point Smoothing) ──────────
-        # 화면 중앙(320,240)의 보이지 않는 가상 점이 타겟을 부드럽게 추적합니다.
+        # 보이지 않는 가상 점이 타겟을 부드럽게 추적합니다.
+        # state.point 는 이 함수(+아래 워치독)만 갱신합니다 — detector 루프는 관여하지 않음.
         # 1.0초 이상 갱신이 없었으면(타겟 소실 후 재획득) 가상 점을 중앙으로 리셋합니다.
+        # 오차 계산은 실제 프레임 중심 기준(해상도 무관), 전송 좌표는 ESP32 펌웨어
+        # 계약(중심 320:240 고정)에 맞춰 재구성합니다.
+        frame = state.current_frame
+        if frame is not None:
+            frame_h, frame_w = frame.shape[:2]
+            center_x, center_y = frame_w / 2.0, frame_h / 2.0
+        else:
+            center_x, center_y = 320.0, 240.0
+
         last_time = getattr(state, 'remote_tracking_last_time', 0.0)
         gap = (now - last_time) > 1.0
 
         if gap or not hasattr(state, '_smooth_tx'):
-            state._smooth_tx = 320.0
-            state._smooth_ty = 240.0
+            state._smooth_tx = center_x
+            state._smooth_ty = center_y
             # 갭 발생 시 모터 즉시 정지 (중앙 = 에러 없음)
             state.point[0] = 320
             state.point[1] = 240
@@ -138,14 +137,13 @@ def set_target():
         state._smooth_ty += alpha * (float(ty) - state._smooth_ty)
 
         # 에러 클램핑: 중앙에서 ±80px 이내로 제한 (급발진 방지)
-        center_x, center_y = 320, 240
         err_x = state._smooth_tx - center_x
         err_y = state._smooth_ty - center_y
         err_x = max(-80.0, min(80.0, err_x))
         err_y = max(-80.0, min(80.0, err_y))
 
-        state.point[0] = int(center_x + err_x)
-        state.point[1] = int(center_y + err_y)
+        state.point[0] = 320 + int(err_x)
+        state.point[1] = 240 + int(err_y)
 
         state.remote_tracking_last_time = now
         state.ball = {
@@ -160,5 +158,4 @@ def set_target():
             "detector": "remote"
         }
         state.ball_lost = False
-    
     return jsonify({"status": "ok"})
