@@ -262,10 +262,12 @@ def _run():
                 ty = 240
             # ----------------------------------------------------
 
-            if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
-                _send(f"T:{tx}:{ty}\n")
-                last_x, last_y = tx, ty
-                last_t_time = now
+            # 50ms 간격 제한을 두어 ESP32 시리얼 버퍼 포화 및 명령 지연 방지 (20 FPS)
+            if now - last_t_time > 0.05:
+                if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
+                    _send(f"T:{tx}:{ty}\n")
+                    last_x, last_y = tx, ty
+                    last_t_time = now
 
         # POS 주기 요청 (60ms)
         if now - last_pos_req > 0.06:
