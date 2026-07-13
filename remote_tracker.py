@@ -116,7 +116,8 @@ def main():
                 with _paused_lock:
                     _paused = (data.get("control_mode") != "auto")
             except:
-                pass
+                with _paused_lock:
+                    _paused = True  # 통신 예외 발생 시 부하 방지 및 안전을 위해 일시정지 상태로 간주
             time.sleep(0.3)
 
     threading.Thread(target=poll_status, daemon=True).start()
