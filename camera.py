@@ -201,9 +201,9 @@ def gen_frames():
     last_jpeg = None
     last_yield_time = 0
     while True:
-        # 프레임이 갱신될 때까지 OS 단에서 대기 (GIL 점유율 0%)
+        # 프레임이 갱신될 때까지 OS 단에서 대기 (카메라 부재 시에도 부드러운 더미 재생을 위해 타임아웃 30ms 지정)
         with _frame_cond:
-            _frame_cond.wait(timeout=0.5)
+            _frame_cond.wait(timeout=0.03)
 
         now = time.time()
         elapsed = now - last_yield_time
