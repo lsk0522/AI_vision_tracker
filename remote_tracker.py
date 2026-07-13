@@ -146,11 +146,14 @@ def main():
                 
                 if target:
                     tx, ty = target
+                    print(f"[노트북] Sending target coordinate: ({tx}, {ty})")
                     try:
                         # Keep-Alive 커넥션을 통해 초고속으로 전송 (타임아웃 1.0초로 넉넉하게 지정)
                         resp = session.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=1.0)
                         if resp.status_code != 200:
                             print(f"[노트북] 전송 실패: 상태 코드 {resp.status_code}")
+                        else:
+                            print(f"[노트북] 전송 완료!")
                     except Exception as e:
                         print(f"[노트북] 전송 오류: {e}")
         except Exception as e:
