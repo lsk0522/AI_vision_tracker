@@ -112,7 +112,16 @@ _latest_jpeg_lock = threading.Lock()
 
 def _capture_loop():
     global _cap, _latest_jpeg
+    last_frame_time = 0
     while _thread_running:
+        now = time.time()
+        # 최대 30 FPS (33ms 간격)로 제한하여 CPU 루프 과점 및 GIL 스타베이션 방지
+        elapsed = now - last_frame_time
+        if elapsed < 0.033:
+            time.sleep(0.033 - elapsed)
+            continue
+        last_frame_time = time.time()
+
         frame = None
         with _cap_lock:
             if _cap and _cap.isOpened():
