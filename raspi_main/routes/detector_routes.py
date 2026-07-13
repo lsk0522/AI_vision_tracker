@@ -108,5 +108,11 @@ def set_target():
             "detector": "remote"
         }
         state.ball_lost = False
+        # ── 직접 state.point 업데이트 (detector 스레드 의존 제거) ──
+        # motor_esp32._run 루프는 state.point를 읽어 T:x:y를 전송합니다.
+        # detector 스레드가 죽어있으면 state.point가 중앙(320,240)에서 안 바뀌어
+        # T 명령이 전혀 나가지 않는 버그를 방지합니다.
+        state.point[0] = tx
+        state.point[1] = ty
     
     return jsonify({"status": "ok"})
