@@ -134,6 +134,7 @@ def main():
     target_cond = threading.Condition()
 
     def target_sender_loop():
+        nonlocal latest_target
         global _paused
         try:
             while True:
