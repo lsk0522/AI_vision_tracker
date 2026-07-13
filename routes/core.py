@@ -231,12 +231,17 @@ def set_input_mode():
             state.control_mode = 'auto'
             if state.motor_connected:
                 esp.set_mode("track")
+                # AI 추적 모드일 때는 모터가 튀는 것(급발진)을 방지하기 위해 최대 속도를 1200Hz로 제동합니다.
+                esp.send_config("MSL", 1200)
         else:
             state.control_mode = 'manual'
             if state.motor_connected:
                 if mode == 'joystick':
                     esp.set_mode("pos")
                     state.esp32_control_mode = "pending_pos"  # 첫 조이스틱 입력 시 모드를 확실하게 보장하기 위해 펜딩 상태로 기록
+                    # 조이스틱 모드로 복귀할 때는 사용자가 설정한 속도 슬라이더 값(speed * 150)으로 복구합니다.
+                    hz = int(state.speed * 150)
+                    esp.send_config("MSL", hz)
                     # 트래킹 모드나 다른 동작 후 조이스틱 모드로 돌아올 때,
                     # 가상 타겟이 엉뚱한 곳에 남아있어 모터가 순간이동(스냅)하는 것을 방지합니다.
                     state.last_queued_target_m1 = state.esp32_pos_m1_deg

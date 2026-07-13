@@ -112,16 +112,7 @@ _latest_jpeg_lock = threading.Lock()
 
 def _capture_loop():
     global _cap, _latest_jpeg
-    last_frame_time = 0
     while _thread_running:
-        now = time.time()
-        # 최대 30 FPS (33ms 간격)로 제한하여 CPU 루프 과점 및 GIL 스타베이션 방지
-        elapsed = now - last_frame_time
-        if elapsed < 0.033:
-            time.sleep(0.033 - elapsed)
-            continue
-        last_frame_time = time.time()
-
         frame = None
         with _cap_lock:
             if _cap and _cap.isOpened():
@@ -142,6 +133,10 @@ def _capture_loop():
                     _latest_jpeg = buf.tobytes()
         else:
             time.sleep(0.01)
+
+        # 무조건 매 루프마다 30ms sleep을 주어 GIL을 안정적으로 양보하고 30 FPS 수준으로 제어합니다.
+        # 이 방식은 타이머 정밀도 문제로 루프가 잠기는 현상을 원천 방지합니다.
+        time.sleep(0.03)
 
 _capture_thread = threading.Thread(target=_capture_loop, daemon=True)
 _capture_thread.start()

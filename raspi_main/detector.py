@@ -163,8 +163,8 @@ def _run():
                 tx = state.ball["cx"]
                 ty = state.ball["cy"]
 
-                # 1차 저주파 필터 (Alpha = 0.35) 적용하여 뚝뚝 끊기는 좌표를 부드럽게 보간
-                alpha = 0.35
+                # 1차 저주파 필터 (Alpha = 0.28) 적용하여 뚝뚝 끊기는 좌표를 부드럽게 보간
+                alpha = 0.28
                 if not hasattr(state, '_smooth_tx'):
                     state._smooth_tx = float(tx)
                     state._smooth_ty = float(ty)
