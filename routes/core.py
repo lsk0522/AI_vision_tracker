@@ -85,42 +85,21 @@ def _sync_speed_to_esp32(speed: int):
 
 
 
-import threading
-_joystick_lock = threading.Lock()
-
 @bp.route('/joystick_dir')
 def joystick_dir():
     # 미세조정을 위해 float로 받음 (script.js에서 -1.0 ~ 1.0 전송)
     x = float(request.args.get('x', 0))
     y = float(request.args.get('y', 0))
-    seq = int(request.args.get('seq', 0))
 
-    if seq > 0:
-        # Lock을 얻기 전에 "가장 최근에 서버에 도착한 요청 번호"를 전역 변수에 기록
-        current_latest = getattr(state, 'latest_received_seq', 0)
-        if seq > current_latest:
-            state.latest_received_seq = seq
-
-    with _joystick_lock:
-        if seq > 0:
-            # 락을 얻고 나서 확인했을 때, 내 번호보다 더 높은 번호의 요청이 이미 도착해있다면 나는 과거 명령이므로 무시
-            if seq < getattr(state, 'latest_received_seq', 0):
-                return "STALE"
-            
-            last_seq = getattr(state, 'joystick_cmd_seq', 0)
-            if seq <= last_seq:
-                return "STALE"
-            state.joystick_cmd_seq = seq
-
-        import motor_esp32 as esp
-        
-        # 조이스틱을 건드리면 즉시 수동(manual) 모드로 전환하여 무거운 AI(YOLO) 연산을 중지시킵니다.
-        if state.control_mode != "manual":
-            state.control_mode = "manual"
-            state.input_mode = "joystick"
-        
-        if state.esp32_control_mode != "pos":
-            esp.set_mode("pos")
+    import motor_esp32 as esp
+    
+    # 조이스틱을 건드리면 즉시 수동(manual) 모드로 전환하여 무거운 AI(YOLO) 연산을 중지시킵니다.
+    if state.control_mode != "manual":
+        state.control_mode = "manual"
+        state.input_mode = "joystick"
+    
+    if state.esp32_control_mode != "pos":
+        esp.set_mode("pos")
             
         if abs(x) < 0.001 and abs(y) < 0.001:
             # 조이스틱에서 손을 뗌 → 즉시 정지
