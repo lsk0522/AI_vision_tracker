@@ -109,6 +109,7 @@ _cap = _open_camera(_camera_index)
 _thread_running = True
 _latest_jpeg = None
 _latest_jpeg_lock = threading.Lock()
+_frame_cond = threading.Condition()
 
 def _capture_loop():
     global _cap, _latest_jpeg
@@ -131,6 +132,8 @@ def _capture_loop():
             if ret:
                 with _latest_jpeg_lock:
                     _latest_jpeg = buf.tobytes()
+                with _frame_cond:
+                    _frame_cond.notify_all()
         else:
             time.sleep(0.01)
 
@@ -197,6 +200,10 @@ def gen_frames():
     """Yield MJPEG frames for the /video stream (Optimized)."""
     last_jpeg = None
     while True:
+        # 프레임이 갱신될 때까지 OS 단에서 대기 (GIL 점유율 0%)
+        with _frame_cond:
+            _frame_cond.wait(timeout=0.5)
+
         with _latest_jpeg_lock:
             jpeg = _latest_jpeg
 
@@ -208,6 +215,7 @@ def gen_frames():
             jpeg = buf.tobytes()
             
         if jpeg == last_jpeg:
+            # 타임아웃 등으로 깨어나 동일 프레임인 경우 짧게 대기
             time.sleep(0.01)
         else:
             last_jpeg = jpeg
