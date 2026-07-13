@@ -237,6 +237,13 @@ def _run():
 
         now = time.time()
 
+        # 자동 모드 동기화 및 자가 치유 (힐링 로직)
+        # 웹 UI에서 AI 추적을 켰을 때 ESP32 모드가 'track'이 아니거나 통신 누락으로 동기화가 깨진 경우 자동 보정합니다.
+        if state.control_mode == "auto" and state.esp32_control_mode != "track":
+            set_mode("track")
+        elif state.control_mode == "manual" and state.esp32_control_mode not in ("pos", "pending_pos"):
+            set_mode("pos")
+
         # track 모드: T:x:y 전송 (좌표 변경 시 즉시 + 30ms heartbeat)
         if state.esp32_control_mode == "track":
             tx, ty = state.point[0], state.point[1]

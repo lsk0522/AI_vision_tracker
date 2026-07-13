@@ -154,21 +154,29 @@ def _run():
             time.sleep(0.1)
 
         if state.control_mode == "auto":
+            center_x, center_y = 320, 240
             if frame is not None:
                 frame_h, frame_w = frame.shape[:2]
                 center_x, center_y = frame_w // 2, frame_h // 2
-            else:
-                center_x, center_y = 320, 240
 
-            if state.ball and frame is not None:
-                # 칼만 필터 예측값이 아닌 실제 객체 좌표를 그대로 사용합니다.
+            if state.ball:
                 tx = state.ball["cx"]
                 ty = state.ball["cy"]
 
-                err_x = tx - center_x
-                err_y = ty - center_y
+                # 1차 저주파 필터 (Alpha = 0.35) 적용하여 뚝뚝 끊기는 좌표를 부드럽게 보간
+                alpha = 0.35
+                if not hasattr(state, '_smooth_tx'):
+                    state._smooth_tx = float(tx)
+                    state._smooth_ty = float(ty)
+                else:
+                    state._smooth_tx = state._smooth_tx + alpha * (float(tx) - state._smooth_tx)
+                    state._smooth_ty = state._smooth_ty + alpha * (float(ty) - state._smooth_ty)
 
-                # 객체를 정확하게 쳐다보게 하기 위해 P-gain(0.60)을 제거하여 100% 이동하도록 합니다.
+                tx_smooth = state._smooth_tx
+                ty_smooth = state._smooth_ty
+
+                err_x = tx_smooth - center_x
+                err_y = ty_smooth - center_y
 
                 # 한 번에 꺾이는 최대 범위를 160픽셀로 확장 (더 빠르고 정확하게)
                 err_x = max(-160, min(160, err_x))
@@ -177,7 +185,11 @@ def _run():
                 state.point[0] = int(center_x + err_x)
                 state.point[1] = int(center_y + err_y)
             else:
-                # 타겟을 놓치면 모터가 폭주하지 않도록 즉시 정지(중앙 좌표)
+                # 타겟을 놓치면 스무딩 상태 초기화 및 즉시 정지(중앙 좌표)
+                if hasattr(state, '_smooth_tx'):
+                    delattr(state, '_smooth_tx')
+                if hasattr(state, '_smooth_ty'):
+                    delattr(state, '_smooth_ty')
                 state.point[0] = center_x
                 state.point[1] = center_y
 def start():
