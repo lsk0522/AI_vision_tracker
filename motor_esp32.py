@@ -191,104 +191,114 @@ def _run():
     last_pos_req   = 0.0
 
     while True:
-        # device_type이 esp32가 아니면 포트 해제
-        if state.device_type != "esp32":
+        try:
+            # device_type이 esp32가 아니면 포트 해제
+            if state.device_type != "esp32":
+                with _ser_lock:
+                    if _ser and _ser.is_open:
+                        try:
+                            _ser.close()
+                        except Exception:
+                            pass
+                        _ser = None
+                        state.motor_connected = False
+                time.sleep(0.5)
+                continue
+
             with _ser_lock:
-                if _ser and _ser.is_open:
+                ser_alive = _ser is not None and _ser.is_open
+
+            if not ser_alive:
+                state.motor_connected = False
+                time.sleep(3)
+                if not getattr(state, "pause_reconnect", False):
+                    connect(_port)
+                continue
+
+            state.motor_connected = True
+
+            # 시리얼 수신
+            try:
+                with _ser_lock:
+                    if _ser and _ser.is_open:
+                        waiting = _ser.in_waiting
+                        if waiting:
+                            raw = _ser.read(waiting)
+                            _rx_buf += raw.decode('utf-8', errors='ignore')
+                            while '\n' in _rx_buf:
+                                line, _rx_buf = _rx_buf.split('\n', 1)
+                                _parse_status(line.strip())
+            except Exception as e:
+                print(f"[esp32] 수신 오류: {e}")
+                with _ser_lock:
                     try:
-                        _ser.close()
+                        if _ser:
+                            _ser.close()
                     except Exception:
                         pass
                     _ser = None
-                    state.motor_connected = False
-            time.sleep(0.5)
-            continue
+                state.motor_connected = False
 
-        with _ser_lock:
-            ser_alive = _ser is not None and _ser.is_open
+            now = time.time()
 
-        if not ser_alive:
-            state.motor_connected = False
-            time.sleep(3)
-            if not getattr(state, "pause_reconnect", False):
-                connect(_port)
-            continue
+            # 자동 모드 동기화 및 자가 치유 (힐링 로직)
+            # 웹 UI에서 AI 추적을 켰을 때 ESP32 모드가 'track'이 아니거나 통신 누락으로 동기화가 깨진 경우 자동 보정합니다.
+            if state.control_mode == "auto" and state.esp32_control_mode != "track":
+                set_mode("track")
+            elif state.control_mode == "manual" and state.esp32_control_mode != "pos":
+                set_mode("pos")
 
-        state.motor_connected = True
+            # track 모드: T:x:y 전송 (좌표 변경 시 즉시 + 30ms heartbeat)
+            if state.esp32_control_mode == "track":
+                tx, ty = state.point[0], state.point[1]
+                
+                # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
+                m1_phys = state.esp32_pos_m1_deg
+                m2_phys = state.esp32_pos_m2_deg
+                
+                # 화면 중앙(320, 240)을 전송하면 모터가 해당 축의 회전을 멈춤.
+                # 1. M2 절대 한계: -45 ~ +45
+                # ty < 240 이면 위로(M2 증가) 회전함. M2가 45 이상이면 차단.
+                if ty < 240 and m2_phys >= 45.0: ty = 240
+                # ty > 240 이면 아래로(M2 감소) 회전함. M2가 -45 이하이면 차단.
+                if ty > 240 and m2_phys <= -45.0: ty = 240
+                
+                # 2. M1 한계: M2가 -45 ~ -25 구간일 때는 -85 ~ +85, 그 외엔 -180 ~ +180
+                m1_limit = 85.0 if (-45.0 <= m2_phys <= -25.0) else 180.0
+                if tx > 320 and m1_phys >= m1_limit: tx = 320
+                if tx < 320 and m1_phys <= -m1_limit: tx = 320
+                
+                # 3. 하강 방지: M1이 85도를 넘은 상태에서 M2가 -25도 밑으로 내려가는 것을 차단
+                if ty > 240 and m2_phys <= -22.0 and abs(m1_phys) > 85.0:
+                    ty = 240
+                # ----------------------------------------------------
 
-        # 시리얼 수신
-        try:
-            with _ser_lock:
-                if _ser and _ser.is_open:
-                    waiting = _ser.in_waiting
-                    if waiting:
-                        raw = _ser.read(waiting)
-                        _rx_buf += raw.decode('utf-8', errors='ignore')
-                        while '\n' in _rx_buf:
-                            line, _rx_buf = _rx_buf.split('\n', 1)
-                            _parse_status(line.strip())
+                if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
+                    try:
+                        with open("/tmp/debug_T.log", "a") as f:
+                            f.write(f"[{time.time():.3f}] Sent T command: T:{tx}:{ty}\n")
+                    except:
+                        pass
+                    _send(f"T:{tx}:{ty}\n")
+                    last_x, last_y = tx, ty
+                    last_t_time = now
+
+            # POS 주기 요청 (track 모드에서는 60ms, pos/manual 모드에서는 200ms로 조절하여 시리얼 부하 감소)
+            pos_interval = 0.06 if state.esp32_control_mode == "track" else 0.20
+            if now - last_pos_req > pos_interval:
+                _send("POS\n")
+                last_pos_req = now
+
+            time.sleep(0.002)
         except Exception as e:
-            print(f"[esp32] 수신 오류: {e}")
-            with _ser_lock:
-                try:
-                    if _ser:
-                        _ser.close()
-                except Exception:
-                    pass
-                _ser = None
-            state.motor_connected = False
-
-        now = time.time()
-
-        # 자동 모드 동기화 및 자가 치유 (힐링 로직)
-        # 웹 UI에서 AI 추적을 켰을 때 ESP32 모드가 'track'이 아니거나 통신 누락으로 동기화가 깨진 경우 자동 보정합니다.
-        if state.control_mode == "auto" and state.esp32_control_mode != "track":
-            set_mode("track")
-        elif state.control_mode == "manual" and state.esp32_control_mode != "pos":
-            set_mode("pos")
-
-        # track 모드: T:x:y 전송 (좌표 변경 시 즉시 + 30ms heartbeat)
-        if state.esp32_control_mode == "track":
-            tx, ty = state.point[0], state.point[1]
-            
-            # --- 파이썬 소프트웨어 리밋 (Soft Limit) 가로채기 ---
-            m1_phys = state.esp32_pos_m1_deg
-            m2_phys = state.esp32_pos_m2_deg
-            
-            # 화면 중앙(320, 240)을 전송하면 모터가 해당 축의 회전을 멈춤.
-            # 1. M2 절대 한계: -45 ~ +45
-            # ty < 240 이면 위로(M2 증가) 회전함. M2가 45 이상이면 차단.
-            if ty < 240 and m2_phys >= 45.0: ty = 240
-            # ty > 240 이면 아래로(M2 감소) 회전함. M2가 -45 이하이면 차단.
-            if ty > 240 and m2_phys <= -45.0: ty = 240
-            
-            # 2. M1 한계: M2가 -45 ~ -25 구간일 때는 -85 ~ +85, 그 외엔 -180 ~ +180
-            m1_limit = 85.0 if (-45.0 <= m2_phys <= -25.0) else 180.0
-            if tx > 320 and m1_phys >= m1_limit: tx = 320
-            if tx < 320 and m1_phys <= -m1_limit: tx = 320
-            
-            # 3. 하강 방지: M1이 85도를 넘은 상태에서 M2가 -25도 밑으로 내려가는 것을 차단
-            if ty > 240 and m2_phys <= -22.0 and abs(m1_phys) > 85.0:
-                ty = 240
-            # ----------------------------------------------------
-
-            if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
-                try:
-                    with open("/tmp/debug_T.log", "a") as f:
-                        f.write(f"[{time.time():.3f}] Sent T command: T:{tx}:{ty}\n")
-                except:
-                    pass
-                _send(f"T:{tx}:{ty}\n")
-                last_x, last_y = tx, ty
-                last_t_time = now
-
-        # POS 주기 요청 (track 모드에서는 60ms, pos/manual 모드에서는 200ms로 조절하여 시리얼 부하 감소)
-        pos_interval = 0.06 if state.esp32_control_mode == "track" else 0.20
-        if now - last_pos_req > pos_interval:
-            _send("POS\n")
-            last_pos_req = now
-
-        time.sleep(0.002)
+            try:
+                import traceback
+                tb = traceback.format_exc()
+                with open("/tmp/debug_T.log", "a") as f:
+                    f.write(f"[{time.time():.3f}] EXCEPTION IN _run: {e}\n{tb}\n")
+            except:
+                pass
+            time.sleep(1.0)
 
 
 def send_config(key: str, value):
