@@ -175,7 +175,10 @@ def _parse_status(line: str):
 
     # ── 기타 피드백 출력 (디버그용) ──────────────────────────
     if line.strip():
-        print(f"[esp32 feedback] {line.strip()}")
+        # JOG 나 STATUS, MODE, T 피드백 등 고주파성 정상 출력은 GIL 락 방지를 위해 콘솔 출력을 차단합니다.
+        upper = line.strip().upper()
+        if not (upper.startswith("OK JOG") or upper.startswith("OK POS") or upper.startswith("OK STATUS") or upper.startswith("OK MODE") or upper.startswith("OK T")):
+            print(f"[esp32 feedback] {line.strip()}")
 
 
 _rx_buf = ""
@@ -237,6 +240,13 @@ def _run():
 
         now = time.time()
 
+        # 자동 모드 동기화 및 자가 치유 (힐링 로직)
+        # 웹 UI에서 AI 추적을 켰을 때 ESP32 모드가 'track'이 아니거나 통신 누락으로 동기화가 깨진 경우 자동 보정합니다.
+        if state.control_mode == "auto" and state.esp32_control_mode != "track":
+            set_mode("track")
+        elif state.control_mode == "manual" and state.esp32_control_mode != "pos":
+            set_mode("pos")
+
         # track 모드: T:x:y 전송 (좌표 변경 시 즉시 + 30ms heartbeat)
         if state.esp32_control_mode == "track":
             tx, ty = state.point[0], state.point[1]
@@ -267,8 +277,9 @@ def _run():
                 last_x, last_y = tx, ty
                 last_t_time = now
 
-        # POS 주기 요청 (60ms)
-        if now - last_pos_req > 0.06:
+        # POS 주기 요청 (track 모드에서는 60ms, pos/manual 모드에서는 200ms로 조절하여 시리얼 부하 감소)
+        pos_interval = 0.06 if state.esp32_control_mode == "track" else 0.20
+        if now - last_pos_req > pos_interval:
             _send("POS\n")
             last_pos_req = now
 
