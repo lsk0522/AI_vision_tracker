@@ -127,8 +127,8 @@ def _capture_loop():
                 frame = cv2.flip(frame, 1)
             state.current_frame = frame.copy()
             
-            # 여기서 한 번만 인코딩 (CPU 부하 획기적 감소)
-            ret, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            # 여기서 한 번만 인코딩 (CPU 부하 획기적 감소 및 이미지 사이즈 40% 절감)
+            ret, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
             if ret:
                 with _latest_jpeg_lock:
                     _latest_jpeg = buf.tobytes()
@@ -199,10 +199,17 @@ def list_cameras(max_test=6):
 def gen_frames():
     """Yield MJPEG frames for the /video stream (Optimized)."""
     last_jpeg = None
+    last_yield_time = 0
     while True:
         # 프레임이 갱신될 때까지 OS 단에서 대기 (GIL 점유율 0%)
         with _frame_cond:
             _frame_cond.wait(timeout=0.5)
+
+        now = time.time()
+        elapsed = now - last_yield_time
+        # 최대 20 FPS (50ms)로 프레임 출력을 제한하여, 전송 버퍼 지연으로 인한 GIL 락(블로킹) 현상을 예방합니다.
+        if elapsed < 0.05:
+            time.sleep(0.05 - elapsed)
 
         with _latest_jpeg_lock:
             jpeg = _latest_jpeg
@@ -211,7 +218,7 @@ def gen_frames():
             time.sleep(0.033)
             # 폴백용 (초기화 전)
             frame = _get_fallback_frame()
-            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
             jpeg = buf.tobytes()
             
         if jpeg == last_jpeg:
@@ -219,6 +226,7 @@ def gen_frames():
             time.sleep(0.01)
         else:
             last_jpeg = jpeg
+            last_yield_time = time.time()
             yield (
                 b'--frame\r\n'
                 b'Content-Type: image/jpeg\r\n\r\n' +

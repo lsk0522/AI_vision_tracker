@@ -95,18 +95,15 @@ def main():
             except:
                 pass
 
-    print("[노트북] 서버 확인 완료! 비디오 스트림을 엽니다...")
-    cap = VideoCaptureThread(video_stream_url)
-    
-    if not cap.cap.isOpened():
-        print("❌ 비디오 스트림을 열 수 없습니다.")
-        return
-        
-    print("✅ 원격 추적이 시작되었습니다! 창을 닫으려면 'q'를 누르세요.")
-    
     # 비동기로 API 요청을 보내기 위한 함수 (메인 루프 프레임 드랍 방지)
-    _paused = False
+    # 초기 상태는 조이스틱 모드(대기)로 시작하도록 True 설정 (불필요한 스트림 연결 방지)
+    _paused = True
     _paused_lock = threading.Lock()
+
+    print("[노트북] 서버 확인 완료! 대기 상태로 시작합니다 (AI 모드 전환 시 비디오가 켜집니다).")
+    cap = None
+    
+    print("✅ 원격 추적이 시작되었습니다! 창을 닫으려면 'q'를 누르세요.")
     
     # 0.3초마다 라즈베리파이의 모드(Auto/Manual) 상태를 체크하는 독립 스레드
     # YOLO 검출 성공 여부와 상관없이 모드 전환을 즉각 감지하기 위함
