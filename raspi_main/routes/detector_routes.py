@@ -77,12 +77,23 @@ def set_target():
     """노트북 등 외부(원격) 기기에서 YOLO 검출 결과를 받아오는 엔드포인트"""
     # 수동(조이스틱) 모드일 때는 즉시 거부하여 Flask 부하를 없앰
     if state.control_mode != "auto":
+        try:
+            with open("/tmp/debug_T.log", "a") as f:
+                f.write(f"[{time.time():.3f}] set_target rejected (control_mode={state.control_mode})\n")
+        except:
+            pass
         return jsonify({"status": "paused"})
     
     import time
     tx = request.args.get('tx', type=int)
     ty = request.args.get('ty', type=int)
     
+    try:
+        with open("/tmp/debug_T.log", "a") as f:
+            f.write(f"[{time.time():.3f}] set_target received: tx={tx}, ty={ty}\n")
+    except:
+        pass
+        
     if tx is not None and ty is not None:
         state.remote_tracking_last_time = time.time()
         state.ball = {
