@@ -128,16 +128,10 @@ def _run():
             ball = None
 
             if state.control_mode == 'auto':
-                import time
-                # 원격(노트북) 추적 모드일 경우 로컬 YOLO 중단 (CPU 절약)
-                if getattr(state, 'remote_tracking_last_time', 0.0) > 0 and (time.time() - state.remote_tracking_last_time < 2.0):
-                    _yolo.stop_tracking()
-                    ball = state.ball
-                else:
-                    _yolo.start_tracking()
-                    ball = _yolo.track(frame)
-                    if ball:
-                        state.ball = ball
+                # 라즈베리파이 자체 YOLO는 CPU를 마비시켜 조이스틱 전환 렉을 유발하므로 비활성화하고,
+                # 오직 노트북 원격 추적 결과(state.ball)만 사용하여 동작하도록 최적화합니다.
+                _yolo.stop_tracking()
+                ball = state.ball
             else:
                 _yolo.stop_tracking()
                 ball = None
