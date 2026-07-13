@@ -135,23 +135,28 @@ def main():
 
     def target_sender_loop():
         global _paused
-        while True:
-            target = None
-            with target_cond:
-                target_cond.wait()
-                with target_lock:
-                    target = latest_target
-                    latest_target = None
-            
-            if target:
-                tx, ty = target
-                try:
-                    # Keep-Alive 커넥션을 통해 초고속으로 전송 (타임아웃 1.0초로 넉넉하게 지정)
-                    resp = session.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=1.0)
-                    if resp.status_code != 200:
-                        print(f"[노트북] 전송 실패: 상태 코드 {resp.status_code}")
-                except requests.exceptions.RequestException as e:
-                    print(f"[노트북] 전송 오류: {e}")
+        try:
+            while True:
+                target = None
+                with target_cond:
+                    target_cond.wait()
+                    with target_lock:
+                        target = latest_target
+                        latest_target = None
+                
+                if target:
+                    tx, ty = target
+                    try:
+                        # Keep-Alive 커넥션을 통해 초고속으로 전송 (타임아웃 1.0초로 넉넉하게 지정)
+                        resp = session.get(f"{raspi_url}/set_target?tx={tx}&ty={ty}", timeout=1.0)
+                        if resp.status_code != 200:
+                            print(f"[노트북] 전송 실패: 상태 코드 {resp.status_code}")
+                    except Exception as e:
+                        print(f"[노트북] 전송 오류: {e}")
+        except Exception as e:
+            import traceback
+            print("[노트북 FATAL] target_sender_loop crashed:")
+            traceback.print_exc()
 
     # 전송용 백그라운드 싱글 스레드 기동 (소켓 고갈 원천 차단)
     threading.Thread(target=target_sender_loop, daemon=True).start()
