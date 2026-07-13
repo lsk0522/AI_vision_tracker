@@ -95,7 +95,34 @@ def set_target():
         pass
         
     if tx is not None and ty is not None:
-        state.remote_tracking_last_time = time.time()
+        now = time.time()
+
+        # ── 가상 포인트 스무딩 (Virtual Point Smoothing) ──────────
+        # 화면 중앙(320,240)의 보이지 않는 가상 점이 타겟을 부드럽게 추적합니다.
+        # 1.5초 이상 갱신이 없었으면(타겟 소실 후 재획득) 가상 점을 중앙으로 리셋합니다.
+        last_time = getattr(state, 'remote_tracking_last_time', 0.0)
+        gap = (now - last_time) > 1.5
+
+        if gap or not hasattr(state, '_smooth_tx'):
+            state._smooth_tx = 320.0
+            state._smooth_ty = 240.0
+
+        # 1차 저주파 필터 (Alpha=0.28) — 가상 점이 타겟을 서서히 따라감
+        alpha = 0.28
+        state._smooth_tx += alpha * (float(tx) - state._smooth_tx)
+        state._smooth_ty += alpha * (float(ty) - state._smooth_ty)
+
+        # 에러 클램핑: 중앙에서 ±160px 이내로 제한 (급격한 모터 움직임 방지)
+        center_x, center_y = 320, 240
+        err_x = state._smooth_tx - center_x
+        err_y = state._smooth_ty - center_y
+        err_x = max(-160.0, min(160.0, err_x))
+        err_y = max(-160.0, min(160.0, err_y))
+
+        state.point[0] = int(center_x + err_x)
+        state.point[1] = int(center_y + err_y)
+
+        state.remote_tracking_last_time = now
         state.ball = {
             "cx": tx,
             "cy": ty,
@@ -108,9 +135,4 @@ def set_target():
             "detector": "remote"
         }
         state.ball_lost = False
-        # state.point 갱신은 detector 루프가 단독으로 담당한다.
-        # (여기서 원본 tx/ty 를 직접 넣으면 프레임 중심 보정이 빠져 detector 루프가 계산한
-        #  320:240 기준 좌표와 경쟁하며 값이 튄다 — remote_tracking_last_time 만 갱신하면
-        #  detector 루프가 다음 틱(≤10ms)에 스무딩까지 적용해 안전하게 반영한다.)
-
     return jsonify({"status": "ok"})

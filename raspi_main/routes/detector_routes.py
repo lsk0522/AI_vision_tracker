@@ -95,7 +95,34 @@ def set_target():
         pass
         
     if tx is not None and ty is not None:
-        state.remote_tracking_last_time = time.time()
+        now = time.time()
+
+        # ── 가상 포인트 스무딩 (Virtual Point Smoothing) ──────────
+        # 화면 중앙(320,240)의 보이지 않는 가상 점이 타겟을 부드럽게 추적합니다.
+        # 1.5초 이상 갱신이 없었으면(타겟 소실 후 재획득) 가상 점을 중앙으로 리셋합니다.
+        last_time = getattr(state, 'remote_tracking_last_time', 0.0)
+        gap = (now - last_time) > 1.5
+
+        if gap or not hasattr(state, '_smooth_tx'):
+            state._smooth_tx = 320.0
+            state._smooth_ty = 240.0
+
+        # 1차 저주파 필터 (Alpha=0.28) — 가상 점이 타겟을 서서히 따라감
+        alpha = 0.28
+        state._smooth_tx += alpha * (float(tx) - state._smooth_tx)
+        state._smooth_ty += alpha * (float(ty) - state._smooth_ty)
+
+        # 에러 클램핑: 중앙에서 ±160px 이내로 제한 (급격한 모터 움직임 방지)
+        center_x, center_y = 320, 240
+        err_x = state._smooth_tx - center_x
+        err_y = state._smooth_ty - center_y
+        err_x = max(-160.0, min(160.0, err_x))
+        err_y = max(-160.0, min(160.0, err_y))
+
+        state.point[0] = int(center_x + err_x)
+        state.point[1] = int(center_y + err_y)
+
+        state.remote_tracking_last_time = now
         state.ball = {
             "cx": tx,
             "cy": ty,
@@ -108,11 +135,5 @@ def set_target():
             "detector": "remote"
         }
         state.ball_lost = False
-        # ── 직접 state.point 업데이트 (detector 스레드 의존 제거) ──
-        # motor_esp32._run 루프는 state.point를 읽어 T:x:y를 전송합니다.
-        # detector 스레드가 죽어있으면 state.point가 중앙(320,240)에서 안 바뀌어
-        # T 명령이 전혀 나가지 않는 버그를 방지합니다.
-        state.point[0] = tx
-        state.point[1] = ty
     
     return jsonify({"status": "ok"})
