@@ -73,6 +73,11 @@ import cli_ui
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
+# Flask 기본 HTTP 요청 로그(GET /joystick_dir 등) 차단 → TUI 화면 갱신 부하 및 렉 해결
+import logging
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+
 @app.after_request
 def disable_caching(response):
     # 모든 정적 파일(JS, CSS 등)의 브라우저 캐싱을 완전히 금지

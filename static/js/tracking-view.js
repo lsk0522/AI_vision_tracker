@@ -254,7 +254,7 @@ function loop(timestamp){
 
         if (state.inputMode === "joystick") {
             const now = Date.now();
-            if (now - state.lastSync > 80) {
+            if (now - state.lastSync > 100) {
                 const shapeJoy = (v) => {
                     const dead = 0.06;
                     const a = Math.abs(v);
