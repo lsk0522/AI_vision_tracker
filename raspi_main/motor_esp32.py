@@ -175,7 +175,10 @@ def _parse_status(line: str):
 
     # ── 기타 피드백 출력 (디버그용) ──────────────────────────
     if line.strip():
-        print(f"[esp32 feedback] {line.strip()}")
+        # JOG 나 STATUS, MODE, T 피드백 등 고주파성 정상 출력은 GIL 락 방지를 위해 콘솔 출력을 차단합니다.
+        upper = line.strip().upper()
+        if not (upper.startswith("OK JOG") or upper.startswith("OK POS") or upper.startswith("OK STATUS") or upper.startswith("OK MODE") or upper.startswith("OK T")):
+            print(f"[esp32 feedback] {line.strip()}")
 
 
 _rx_buf = ""
