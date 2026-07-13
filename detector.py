@@ -137,8 +137,10 @@ def _run():
             if state.control_mode == 'auto':
                 # 라즈베리파이 자체 YOLO는 CPU를 마비시켜 조이스틱 전환 렉을 유발하므로 비활성화하고,
                 # 오직 노트북 원격 추적 결과(state.ball)만 사용하여 동작하도록 최적화합니다.
+                # 주의: 여기에 `import time`을 다시 넣으면 안 됨 — 함수 안에서 import하면
+                # time이 함수 전체의 지역변수로 잡혀, 위쪽 time.time() 호출들이 전부
+                # UnboundLocalError로 죽어 detector 스레드가 시작 즉시 조용히 사망한다.
                 _yolo.stop_tracking()
-                import time
                 if getattr(state, 'remote_tracking_last_time', 0.0) > 0 and (time.time() - state.remote_tracking_last_time < 2.0):
                     ball = state.ball
                 else:

@@ -100,7 +100,6 @@ def release_motors():
             _ser.flush()
         except:
             pass
-    import time
     time.sleep(0.1)
     print("[esp32] 모터 홀딩 전류 해제 (REL)")
 

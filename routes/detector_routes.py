@@ -106,8 +106,7 @@ def set_target():
         except:
             pass
         return jsonify({"status": "paused"})
-    
-    import time
+
     tx = request.args.get('tx', type=int)
     ty = request.args.get('ty', type=int)
     
