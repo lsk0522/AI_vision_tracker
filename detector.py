@@ -176,6 +176,11 @@ def _run():
 
                     state.point[0] = int(center_x + err_x)
                     state.point[1] = int(center_y + err_y)
+                    try:
+                        with open("/tmp/debug_T.log", "a") as f:
+                            f.write(f"[{time.time():.3f}] Detector updated point to: {state.point[0]}:{state.point[1]} (from ball {tx}:{ty})\n")
+                    except:
+                        pass
                 else:
                     # 타겟을 놓치면 스무딩 상태 초기화 및 즉시 정지(중앙 좌표)
                     if hasattr(state, '_smooth_tx'):
@@ -186,6 +191,13 @@ def _run():
                     state.point[1] = center_y
 
         except Exception as e:
+            try:
+                import traceback
+                tb = traceback.format_exc()
+                with open("/tmp/debug_T.log", "a") as f:
+                    f.write(f"[{time.time():.3f}] EXCEPTION IN detector.py: {e}\n{tb}\n")
+            except:
+                pass
             print(f"[Detector] Exception in _run loop: {e}")
         
         # 10ms 대기를 주어 CPU 점유율을 제어하고 GIL 양보
