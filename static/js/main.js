@@ -24,6 +24,7 @@ import './klipper.js';
 import './firmware.js';
 import './camera-settings.js';
 import './misc-controls.js';
+import './recorder.js';
 
 // ESC 키: 열려있는 모달/오버레이가 하나도 없으면 설정창을 연다 (원본의 마지막 else 분기)
 initEscKey(openSettings);

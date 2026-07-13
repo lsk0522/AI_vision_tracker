@@ -12,6 +12,8 @@
 
 :root {
     /* Apple Design System Colors */
+    --green: #30d158;   /* 연결/성공 상태 — 미정의 시 모터 dot 배경이 투명해져 초록불이 안 보임 */
+    --red: #ff453a;     /* 녹화/경고 상태 */
     --primary: #0066cc;
     --primary-focus: #0071e3;
     --primary-on-dark: #2997ff;
@@ -204,9 +206,12 @@ body {
     gap: 2px;
 }
 
-/* 헤더 아이콘 버튼 공통 */
+/* 헤더 아이콘 버튼 공통
+   (.icon-btn: fullscreen 등 — 정의가 없으면 브라우저 기본 흰색 버튼으로 렌더링됨) */
 #settings-btn,
-#motor-status-btn {
+#motor-status-btn,
+#record-btn,
+.icon-btn {
     background: none;
     border: none;
     color: var(--ink-muted-80);
@@ -225,19 +230,55 @@ body {
 }
 
 #settings-btn:hover,
-#motor-status-btn:hover {
+#motor-status-btn:hover,
+#record-btn:hover,
+.icon-btn:hover {
     background: rgba(255,255,255,0.10);
     color: var(--ink);
 }
 
 #settings-btn:active,
-#motor-status-btn:active {
+#motor-status-btn:active,
+#record-btn:active,
+.icon-btn:active {
     transform: scale(0.86);
     background: rgba(255,255,255,0.05);
 }
 
 #settings-btn    svg { width: 18px; height: 18px; }
 #motor-status-btn svg { width: 17px; height: 17px; }
+#record-btn      svg { width: 17px; height: 17px; }
+.icon-btn        svg { width: 18px; height: 18px; }
+
+/* ── 화면 녹화 버튼 ──────────────────────────────── */
+#record-btn.recording {
+    color: var(--red);
+    background: rgba(255,69,58,0.14);
+}
+#record-btn.recording svg circle {
+    fill: var(--red);
+    animation: rec-pulse 1.2s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+/* 녹화 중 경과 시간 뱃지 */
+#record-time {
+    display: none;
+    position: absolute;
+    top: -6px;
+    right: -10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: var(--red);
+    border-radius: 7px;
+    padding: 1px 5px;
+    pointer-events: none;
+}
+#record-btn.recording #record-time { display: block; }
 
 #settings-btn svg {
     transition: transform 0.6s var(--spring-bounce);
