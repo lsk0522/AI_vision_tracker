@@ -273,7 +273,6 @@ def _run():
             # ----------------------------------------------------
 
             if abs(tx - last_x) >= 1 or abs(ty - last_y) >= 1:
-                print(f"[DEBUG_PI] Sending target to ESP32: T:{tx}:{ty}")
                 _send(f"T:{tx}:{ty}\n")
                 last_x, last_y = tx, ty
                 last_t_time = now
