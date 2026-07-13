@@ -115,8 +115,22 @@ def reset_tracker():
 
 # ── 메인 루프 ────────────────────────────────────────────
 def _run():
+    try:
+        with open("/tmp/debug_T.log", "a") as f:
+            f.write(f"[{time.time():.3f}] detector _run() thread started!\n")
+    except:
+        pass
+    last_debug_time = 0.0
     while True:
         try:
+            now = time.time()
+            if now - last_debug_time > 1.0:
+                last_debug_time = now
+                try:
+                    with open("/tmp/debug_T.log", "a") as f:
+                        f.write(f"[{now:.3f}] detector loop: control_mode={state.control_mode}, ball={state.ball}\n")
+                except:
+                    pass
             # ── 추적 ────────────────────────────────────────
             ball = None
 
@@ -204,6 +218,11 @@ def _run():
         time.sleep(0.01)
 def start():
     global _thread
+    try:
+        with open("/tmp/debug_T.log", "a") as f:
+            f.write(f"[{time.time():.3f}] detector.start() called!\n")
+    except:
+        pass
     _thread = threading.Thread(target=_run, daemon=True)
     _thread.start()
 
