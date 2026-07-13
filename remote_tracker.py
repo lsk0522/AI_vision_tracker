@@ -75,8 +75,12 @@ def main():
                         self.ret = ret
                         self.frame = frame
                 else:
+                    if not self.running:
+                        break
                     # 끊겼을 때 재연결 로직
                     time.sleep(1)
+                    if not self.running:
+                        break
                     self.cap.open(video_stream_url)
 
         def read(self):
@@ -85,8 +89,11 @@ def main():
 
         def release(self):
             self.running = False
-            self.thread.join()
-            self.cap.release()
+            self.cap.release()  # 먼저 release하여 cap.read() 블로킹을 해제
+            try:
+                self.thread.join(timeout=1.0)  # 스레드 종료 대기 (최대 1초)
+            except:
+                pass
 
     print("[노트북] 서버 확인 완료! 비디오 스트림을 엽니다...")
     cap = VideoCaptureThread(video_stream_url)
