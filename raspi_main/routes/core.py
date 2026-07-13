@@ -114,9 +114,18 @@ def joystick_dir():
 
         import motor_esp32 as esp
         
+        # 조이스틱을 건드리면 즉시 수동(manual) 모드로 전환하여 무거운 AI(YOLO) 연산을 중지시킵니다.
+        # 단, 사용자가 명시적으로 웹 UI에서 AI 모드('auto')로 진입한 상태라면 조이스틱 입력 무시
+        if state.input_mode == 'auto':
+            return "AUTO_MODE_ACTIVE"
+
+        if state.control_mode != "manual":
+            state.control_mode = "manual"
+            state.input_mode = "joystick"
+        
         if state.esp32_control_mode != "pos":
             esp.set_mode("pos")
-            
+                
         if abs(x) < 0.001 and abs(y) < 0.001:
             # 조이스틱에서 손을 뗌 → 즉시 정지
             esp.stop_motors()
@@ -226,11 +235,17 @@ def set_input_mode():
             state.control_mode = 'auto'
             if state.motor_connected:
                 esp.set_mode("track")
+                # AI 추적 모드일 때는 모터가 튀는 것(급발진)을 방지하기 위해 최대 속도를 1200Hz로 제동합니다.
+                esp.send_config("MSL", 1200)
         else:
             state.control_mode = 'manual'
             if state.motor_connected:
                 if mode == 'joystick':
                     esp.set_mode("pos")
+                    state.esp32_control_mode = "pos"
+                    # 조이스틱 모드로 복귀할 때는 사용자가 설정한 속도 슬라이더 값(speed * 150)으로 복구합니다.
+                    hz = int(state.speed * 150)
+                    esp.send_config("MSL", hz)
                     # 트래킹 모드나 다른 동작 후 조이스틱 모드로 돌아올 때,
                     # 가상 타겟이 엉뚱한 곳에 남아있어 모터가 순간이동(스냅)하는 것을 방지합니다.
                     state.last_queued_target_m1 = state.esp32_pos_m1_deg
