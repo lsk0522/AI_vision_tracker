@@ -209,7 +209,7 @@ def _run():
 
             if not ser_alive:
                 state.motor_connected = False
-                time.sleep(3)
+                time.sleep(1)
                 if not getattr(state, "pause_reconnect", False):
                     connect(_port)
                 continue
@@ -218,15 +218,17 @@ def _run():
 
             # 시리얼 수신
             try:
+                raw_bytes = None
                 with _ser_lock:
                     if _ser and _ser.is_open:
                         waiting = _ser.in_waiting
                         if waiting:
-                            raw = _ser.read(waiting)
-                            _rx_buf += raw.decode('utf-8', errors='ignore')
-                            while '\n' in _rx_buf:
-                                line, _rx_buf = _rx_buf.split('\n', 1)
-                                _parse_status(line.strip())
+                            raw_bytes = _ser.read(waiting)
+                if raw_bytes:
+                    _rx_buf += raw_bytes.decode('utf-8', errors='ignore')
+                    while '\n' in _rx_buf:
+                        line, _rx_buf = _rx_buf.split('\n', 1)
+                        _parse_status(line.strip())
             except Exception as e:
                 print(f"[esp32] 수신 오류: {e}")
                 with _ser_lock:
@@ -277,8 +279,8 @@ def _run():
                     last_x, last_y = tx, ty
                     last_t_time = now
 
-            # POS 주기 요청 (track 모드에서는 60ms, pos/manual 모드에서는 200ms로 조절하여 시리얼 부하 감소)
-            pos_interval = 0.06 if state.esp32_control_mode == "track" else 0.20
+            # POS 주기 요청 (track 모드에서는 60ms, pos/manual 모드에서는 500ms로 조절하여 시리얼 부하 감소)
+            pos_interval = 0.06 if state.esp32_control_mode == "track" else 0.50
             if now - last_pos_req > pos_interval:
                 _send("POS\n")
                 last_pos_req = now

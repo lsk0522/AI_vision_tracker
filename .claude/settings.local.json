@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Read(//tmp/**)",
+      "Skill(run)",
+      "Bash(command -v chromium-cli)",
+      "Bash(command -v npx)",
+      "Read(//c//**)",
+      "Bash(chromium-cli *)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Read(//c/Users/LSK0522/AppData/Local/Temp/claude/C--Users-LSK0522-OneDrive-----------------------Softwere-AI-vision-tracker-main-v1-0-0-AI-vision-tracker-main/f27a6f6d-3f6d-49bf-a1eb-a3bcd910be06/scratchpad/**)",
+      "Bash(node screenshot.js)",
+      "Bash(NODE_PATH='/c/Users/LSK0522/OneDrive - 서울로봇고등학교/바탕 화면/졸업작품/Softwere/AI_vision_tracker-main v1.0.0/AI_vision_tracker-main/website/node_modules' node /c/Users/LSK0522/AppData/Local/Temp/claude/C--Users-LSK0522-OneDrive-----------------------Softwere-AI-vision-tracker-main-v1-0-0-AI-vision-tracker-main/f27a6f6d-3f6d-49bf-a1eb-a3bcd910be06/scratchpad/screenshot.js)",
+      "Bash(rm -f shot-light.png shot-dark.png)",
+      "Bash(pkill -f \"vite --port 5173\")",
+      "Bash(rm -f \"/c/Users/LSK0522/AppData/Local/Temp/claude/C--Users-LSK0522-OneDrive-----------------------Softwere-AI-vision-tracker-main-v1-0-0-AI-vision-tracker-main/f27a6f6d-3f6d-49bf-a1eb-a3bcd910be06/scratchpad/screenshot.js\")",
+      "Bash(git checkout *)",
+      "Bash(git check-ignore *)",
+      "Bash(node \"/c/Users/LSK0522/AppData/Local/Temp/claude/C--Users-LSK0522-OneDrive-----------------------Softwere-AI-vision-tracker-main-v1-0-0-AI-vision-tracker-main/f27a6f6d-3f6d-49bf-a1eb-a3bcd910be06/scratchpad/audit.js\")",
+      "Bash(NODE_PATH=__TRACKED_VAR__/node_modules node /c/Users/LSK0522/AppData/Local/Temp/claude/C--Users-LSK0522-OneDrive-----------------------Softwere-AI-vision-tracker-main-v1-0-0-AI-vision-tracker-main/f27a6f6d-3f6d-49bf-a1eb-a3bcd910be06/scratchpad/audit.js)"
+    ]
+  }
+}
