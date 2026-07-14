@@ -29,7 +29,10 @@ export const state = {
     joySendY: 0,
     joystickTouchId: null,
     _joySent: false,
-    joySeq: 0,
+    // seq를 0이 아닌 현재 시각(ms)에서 시작: 서버는 이전 세션의 마지막 seq보다 작은
+    // 요청을 전부 STALE로 버리므로, 0부터 시작하면 새로고침 직후 조이스틱 명령이
+    // 한동안 모두 무시되어 "딜레이/먹통"처럼 보인다. Date.now()는 항상 단조 증가.
+    joySeq: Date.now(),
 
     // 위치 동기화 쓰로틀 타임스탬프
     lastSync: 0,

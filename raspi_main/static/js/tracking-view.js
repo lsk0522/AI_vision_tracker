@@ -214,7 +214,7 @@ async function syncPos(){
     // 자동 모드일 때는 모터 위치(/pos)로 크로스헤어를 옮기지 않음
     if (state.controlMode === "auto") return;
 
-    // 조이스틱을 사용 중이거나 최근에 사용했다면 서버 위치로 덮어쓰지 않음 (튀는 현상 방지)
+    // 조이스틱을 사용 중이거나 최근에 사용했다면 아예 서버에 요청조차 하지 않음 (네트워크 트래픽 낭비 방지)
     if (state.joystickTouchId !== null || (Date.now() - state.lastSync < 300)) return;
 
     try {
@@ -230,13 +230,13 @@ async function syncPos(){
 }
 
 // 자동 모드: 50ms마다 위치 동기화 (추적 반응성)
-// 수동 모드: 동기화 안 함 — 클라이언트가 직접 위치 관리
+// 수동 포인터 모드에서만 모터의 물리적 위치 표시를 위해 /pos를 호출하고,
+// 조이스틱 및 자동 모드일 때는 네트워크 낭비를 방지하기 위해 호출하지 않습니다.
 setInterval(() => {
-    // 자동 모드: syncPos(/pos)는 사용하지 않음 (모터 각도 추종 금지)
-    if (state.controlMode !== "auto") {
+    if (state.inputMode === "pointer") {
         syncPos();
     }
-}, 50);
+}, 200);
 
 /* ==========================================
    메인 드로잉 및 조준점 갱신 루프 (delta-time lerp)
@@ -254,60 +254,41 @@ function loop(timestamp){
 
         if (state.inputMode === "joystick") {
             const now = Date.now();
-            if (now - state.lastSync > 80) {
-                const shapeJoy = (v) => {
-                    const dead = 0.06;
-                    const a = Math.abs(v);
-                    if (a <= dead) return 0;
-                    const n = (a - dead) / (1 - dead);
-                    return Math.sign(v) * Math.pow(n, 1.35);
-                };
-                const targetJoyX = shapeJoy(state.joyVx);
-                const targetJoyY = shapeJoy(state.joyVy);
+            const shapeJoy = (v) => {
+                const dead = 0.06;
+                const a = Math.abs(v);
+                if (a <= dead) return 0;
+                const n = (a - dead) / (1 - dead);
+                return Math.sign(v) * Math.pow(n, 1.35);
+            };
+            const targetJoyX = shapeJoy(state.joyVx);
+            const targetJoyY = shapeJoy(state.joyVy);
 
-                // 조준점 반응 속도(maxSpeed: 1~20)에 비례한 가속도 제한 (급발진 방지)
-                const maxDelta = 0.04 + (state.maxSpeed * 0.005);
+            // 프론트 가속 램프 제거: ESP32 펌웨어가 자체 하드웨어 가속(ACC)을 수행하므로
+            // 여기서 램프를 걸면 스틱 풀-당김 후 최고속 도달까지 ~250ms의 이중 지연이 생긴다.
+            // 스틱 값을 즉시 반영해 "당기면 바로, 놓으면 바로"를 보장한다.
+            state.joySendX = targetJoyX;
+            state.joySendY = targetJoyY;
 
-                if (targetJoyX === 0 && targetJoyY === 0) {
-                    state.joySendX = 0;
-                    state.joySendY = 0;
-                } else {
-                    if (targetJoyX > state.joySendX + maxDelta) state.joySendX += maxDelta;
-                    else if (targetJoyX < state.joySendX - maxDelta) state.joySendX -= maxDelta;
-                    else state.joySendX = targetJoyX;
+            const engaged = Math.abs(targetJoyX) > 0.01 || Math.abs(targetJoyY) > 0.01;
 
-                    if (targetJoyY > state.joySendY + maxDelta) state.joySendY += maxDelta;
-                    else if (targetJoyY < state.joySendY - maxDelta) state.joySendY -= maxDelta;
-                    else state.joySendY = targetJoyY;
-                }
-
-                if (targetJoyX === 0 && targetJoyY === 0 && Math.abs(state.joySendX) < 0.001 && Math.abs(state.joySendY) < 0.001) {
-                    state.joySendX = 0;
-                    state.joySendY = 0;
-                    if (state._joySent) {
-                        state.joySeq++;
-                        fetch(`/joystick_dir?x=0&y=0&seq=${state.joySeq}`).catch(()=>{});
-                        state.lastSync = now;
-                        state._joySent = false;
-                    }
-                    requestAnimationFrame(loop);
-                    return;
-                }
-
-                if (Math.abs(state.joySendX) > 0.01 || Math.abs(state.joySendY) > 0.01) {
+            if (engaged) {
+                // 조작 시작(첫 전송)은 50ms 게이트를 우회해 즉시 전송 → 당기는 순간 반응
+                if (!state._joySent || now - state.lastSync > 50) {
                     const speedMult = state.maxSpeed / 5.0;
                     state.joySeq++;
-                    fetch(`/joystick_dir?x=${(state.joySendX * speedMult).toFixed(3)}&y=${(state.joySendY * speedMult).toFixed(3)}&seq=${state.joySeq}`).catch(()=>{});
+                    fetch(`/joystick_dir?x=${(targetJoyX * speedMult).toFixed(3)}&y=${(targetJoyY * speedMult).toFixed(3)}&seq=${state.joySeq}`).catch(()=>{});
                     state.lastSync = now;
                     state._joySent = true;
-                } else if (state._joySent) {
-                    state.joySendX = 0;
-                    state.joySendY = 0;
-                    state.joySeq++;
-                    fetch(`/joystick_dir?x=0&y=0&seq=${state.joySeq}`).catch(()=>{});
-                    state.lastSync = now;
-                    state._joySent = false;
                 }
+            } else if (state._joySent) {
+                // 스틱 해제 → 게이트 없이 즉시 정지 전송 (resetStick의 abort 전송과 이중 안전망)
+                state.joySendX = 0;
+                state.joySendY = 0;
+                state.joySeq++;
+                fetch(`/joystick_dir?x=0&y=0&seq=${state.joySeq}`).catch(()=>{});
+                state.lastSync = now;
+                state._joySent = false;
             }
         }
     } else {
