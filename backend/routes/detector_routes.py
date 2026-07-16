@@ -123,27 +123,52 @@ def set_target():
 
         last_time = getattr(state, 'remote_tracking_last_time', 0.0)
         gap = (now - last_time) > 1.0
+        dt = now - last_time
+        if dt < 0.001:
+            dt = 0.001
 
-        if gap or not hasattr(state, '_smooth_tx'):
+        if gap or not hasattr(state, '_smooth_tx') or not hasattr(state, '_integral_x'):
             state._smooth_tx = center_x
             state._smooth_ty = center_y
-            # 갭 발생 시 모터 즉시 정지 (중앙 = 에러 없음)
+            state._integral_x = 0.0
+            state._integral_y = 0.0
+            state._prev_err_x = 0.0
+            state._prev_err_y = 0.0
             state.point[0] = 320
             state.point[1] = 240
 
-        # 1차 저주파 필터 (Alpha=0.12) — 가상 점이 타겟을 천천히 따라감
-        alpha = 0.12
-        state._smooth_tx += alpha * (float(tx) - state._smooth_tx)
-        state._smooth_ty += alpha * (float(ty) - state._smooth_ty)
+        Kp = 0.15
+        Ki = 0.01
+        Kd = 0.05
+        windup_limit = 100.0
 
-        # 에러 클램핑: 중앙에서 ±80px 이내로 제한 (급발진 방지)
-        err_x = state._smooth_tx - center_x
-        err_y = state._smooth_ty - center_y
-        err_x = max(-80.0, min(80.0, err_x))
-        err_y = max(-80.0, min(80.0, err_y))
+        err_x = float(tx) - state._smooth_tx
+        err_y = float(ty) - state._smooth_ty
 
-        state.point[0] = 320 + int(err_x)
-        state.point[1] = 240 + int(err_y)
+        state._integral_x += err_x * dt
+        state._integral_y += err_y * dt
+        state._integral_x = max(-windup_limit, min(windup_limit, state._integral_x))
+        state._integral_y = max(-windup_limit, min(windup_limit, state._integral_y))
+
+        derivative_x = (err_x - state._prev_err_x) / dt
+        derivative_y = (err_y - state._prev_err_y) / dt
+
+        output_x = (Kp * err_x) + (Ki * state._integral_x) + (Kd * derivative_x)
+        output_y = (Kp * err_y) + (Ki * state._integral_y) + (Kd * derivative_y)
+
+        state._smooth_tx += output_x
+        state._smooth_ty += output_y
+
+        state._prev_err_x = err_x
+        state._prev_err_y = err_y
+
+        offset_x = state._smooth_tx - center_x
+        offset_y = state._smooth_ty - center_y
+        offset_x = max(-80.0, min(80.0, offset_x))
+        offset_y = max(-80.0, min(80.0, offset_y))
+
+        state.point[0] = 320 + int(offset_x)
+        state.point[1] = 240 + int(offset_y)
 
         state.remote_tracking_last_time = now
         state.ball = {
@@ -159,3 +184,23 @@ def set_target():
         }
         state.ball_lost = False
     return jsonify({"status": "ok"})
+
+
+@bp.route('/api/status/monitor', methods=['GET'])
+def api_status_monitor():
+    """모터 안전 제한 상태 및 비전 조준 오차 모니터링 API"""
+    limit_msg = getattr(state, 'active_limit_msg', "")
+    limit_active = bool(limit_msg)
+    
+    # 조준점 편차 계산 (화면 중심 320, 240 기준)
+    curr_point = getattr(state, 'point', [320, 240])
+    target_error_x = curr_point[0] - 320
+    target_error_y = curr_point[1] - 240
+    
+    return jsonify({
+        "limit_active": limit_active,
+        "limit_message": limit_msg,
+        "target_error_x": target_error_x,
+        "target_error_y": target_error_y,
+        "current_point": curr_point
+    }), 200

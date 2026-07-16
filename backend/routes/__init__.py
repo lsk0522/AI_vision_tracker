@@ -3,6 +3,7 @@ from .core import bp as core_bp
 from .camera_routes import bp as camera_bp
 from .detector_routes import bp as detector_bp
 from .motor_routes import bp as motor_bp
+from .auth_routes import bp as auth_bp
 
 
 def setup_routes(app):
@@ -10,3 +11,4 @@ def setup_routes(app):
     app.register_blueprint(camera_bp)
     app.register_blueprint(detector_bp)
     app.register_blueprint(motor_bp)
+    app.register_blueprint(auth_bp)
