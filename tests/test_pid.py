@@ -75,8 +75,10 @@ class TestPIDTracking(unittest.TestCase):
         
         # D항 제동량이 제어 출력의 속도를 늦추도록 기여했는지 확인
         # (만약 LFP 형태였다면 단순 오차에 비례해 계속 + 방향으로 빠르게 달려갔을 것임)
-        # 미분 제동력이 잘 걸려서 제어 변화량이 억제되었는지 검증
+        # 미분 제동력이 잘 걸려서 제어 변화량이 억제(감속 브레이크 작동)되었는지 검증
         self.assertTrue(state._prev_err_x < 20.0) # 오차가 10으로 감소되었음
+        # 미분 댐핑량(-50)이 비례 제어량(+1.5)보다 압도적으로 강해 실제 _smooth_tx 가 390.0보다 감소하였음을 검증
+        self.assertTrue(state._smooth_tx < 390.0)
 
     def test_scenario_3_anti_windup(self):
         """시나리오 3: 미세한 오차가 지속될 때, Anti-Windup 임계치 안에서 적분(I) 제어가 안전하게 상한선에 도달하는가?"""

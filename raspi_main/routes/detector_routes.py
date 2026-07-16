@@ -136,6 +136,7 @@ def set_target():
             state._prev_err_y = 0.0
             state.point[0] = 320
             state.point[1] = 240
+            dt = 0.001  # 리셋 직후 거대한 dt로 인한 적분 폭주(Windup 포화) 방지
 
         Kp = 0.15
         Ki = 0.01
