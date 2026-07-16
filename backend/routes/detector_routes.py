@@ -35,7 +35,7 @@ _watchdog.start()
 # ── 갤러리 ────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(BASE_DIR)
-PICTURE_DIR = os.path.join(PROJECT_DIR, "picture")
+PICTURE_DIR = os.path.join(os.path.dirname(PROJECT_DIR), "data", "picture")
 
 @bp.route('/captures')
 def list_captures():
@@ -55,14 +55,14 @@ def list_captures():
 def serve_picture(filename):
     import os
     from flask import send_from_directory
-    pic_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'picture')
+    pic_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'picture')
     return send_from_directory(pic_dir, filename)
 
 
 @bp.route('/delete/<path:filename>')
 def delete_picture(filename):
     import os
-    pic_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'picture')
+    pic_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'picture')
     file_path = safe_join(pic_dir, filename)
     if file_path is None:
         return jsonify({"status": "error", "message": "Invalid filename"}), 400

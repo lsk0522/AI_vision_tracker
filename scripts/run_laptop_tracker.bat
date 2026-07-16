@@ -12,7 +12,7 @@ echo.
 echo Starting Laptop AI Remote Tracker targeting %RASPI_IP%...
 echo.
 
-python remote_tracker.py --ip %RASPI_IP%
+python ..\backend\remote_tracker.py --ip %RASPI_IP%
 
 echo.
 echo Finished. Press any key to exit.

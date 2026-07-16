@@ -21,7 +21,7 @@ def main():
         os.path.join(os.environ.get('USERPROFILE', 'C:\\Users\\LSK0522'), 'Desktop', 'shuttlecock model', 'best_int8.tflite')
     ]
     
-    model_path = 'best_int8.tflite'
+    model_path = 'data/best_int8.tflite'
     for p in desktop_paths:
         if os.path.exists(p):
             model_path = p

@@ -2,10 +2,7 @@ import cv2
 import time
 import threading
 import numpy as np
-try:
-    from ultralytics import YOLO
-except ImportError:
-    YOLO = None
+from mediapipe_detector import MediaPipeDetector
 
 import state
 
@@ -52,55 +49,10 @@ class KalmanTracker:
 
 
 # ── YOLO 트래커 (단독 AI) ──────────────────────────────────
-class YOLOTracker:
-    def __init__(self):
-        if YOLO is not None:
-            self.model = YOLO('best_int8.tflite', task='detect')
-        else:
-            self.model = None
-        self.active = False
-        
-    def start_tracking(self):
-        self.active = True
-        
-    def stop_tracking(self):
-        self.active = False
-        
-    def track(self, frame):
-        if not self.active or self.model is None:
-            return None
-            
-        results = self.model(frame, verbose=False, conf=0.25)
-        
-        if len(results) > 0 and len(results[0].boxes) > 0:
-            boxes = results[0].boxes
-            best_box = None
-            max_conf = -1
-            
-            for box in boxes:
-                conf = float(box.conf[0])
-                if conf > max_conf:
-                    max_conf = conf
-                    best_box = box
-                    
-            if best_box is not None:
-                x1, y1, x2, y2 = map(int, best_box.xyxy[0])
-                w = x2 - x1
-                h = y2 - y1
-                cx = x1 + w // 2
-                cy = y1 + h // 2
-                
-                return {
-                    "cx": cx, "cy": cy,
-                    "x": x1, "y": y1, "w": w, "h": h,
-                    "conf": max_conf,
-                    "predicted": False,
-                    "detector": "yolo"
-                }
-        return None
+# YOLOTracker removed. Using MediaPipeDetector.
 
 # ── 모듈 인스턴스 ────────────────────────────────────────
-_yolo = YOLOTracker()
+_mp_tracker = MediaPipeDetector(mode="hand")
 _kalman = KalmanTracker()
 _thread = None
 
@@ -121,18 +73,15 @@ def _run():
             ball = None
 
             if state.control_mode == 'auto':
-                # 라즈베리파이 자체 YOLO는 CPU를 마비시켜 조이스틱 전환 렉을 유발하므로 비활성화하고,
-                # 오직 노트북 원격 추적 결과(state.ball)만 사용하여 동작하도록 최적화합니다.
-                # 주의: 여기에 `import time`을 다시 넣으면 안 됨 — 함수 안에서 import하면
-                # time이 함수 전체의 지역변수로 잡혀, 위쪽 time.time() 호출들이 전부
-                # UnboundLocalError로 죽어 detector 스레드가 시작 즉시 조용히 사망한다.
-                _yolo.stop_tracking()
+                # 원격 추적을 우선시하고, 원격 추적이 끊기면 로컬 MediaPipe 사용
                 if getattr(state, 'remote_tracking_last_time', 0.0) > 0 and (time.time() - state.remote_tracking_last_time < 2.0):
                     ball = state.ball
                 else:
-                    ball = None
+                    if state.current_frame is not None:
+                        ball = _mp_tracker.detect(state.current_frame)
+                    else:
+                        ball = None
             else:
-                _yolo.stop_tracking()
                 ball = None
                 state.ball = None
 
