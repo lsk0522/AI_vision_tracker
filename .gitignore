@@ -14,3 +14,7 @@ turret_venv/
 scratch/
 __pycache__/
 *.pyc
+
+# aivt install 이 각 Mac 경로로 생성
+AIVT.command
+.DS_Store

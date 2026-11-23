@@ -9,8 +9,20 @@ from ultralytics import YOLO
 
 def main():
     parser = argparse.ArgumentParser(description="Laptop Remote AI Tracker for Raspberry 파이")
-    parser.add_argument("--ip", type=str, default="172.30.14.31", help="라즈베리파이 IP 주소 (기본값: 172.30.14.31)")
+    parser.add_argument("--ip", type=str, default=None, help="라즈베리파이 IP 주소 (생략하면 자동 탐색: scripts/find_pi.py)")
     args = parser.parse_args()
+
+    # IP를 안 주면 라즈베리파이를 자동으로 찾음 (IP가 자주 바뀌는 네트워크 대비)
+    if not args.ip:
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+        from find_pi import find_pi
+        print("[노트북] 라즈베리파이 자동 탐색 중...")
+        args.ip = find_pi()
+        if not args.ip:
+            print("❌ 라즈베리파이를 찾지 못했습니다. --ip 로 직접 지정하세요.")
+            return
+        print(f"[노트북] 라즈베리파이 발견: {args.ip}")
     
     raspi_url = f"http://{args.ip}:5000"
     video_stream_url = f"{raspi_url}/video"
