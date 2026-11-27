@@ -1,21 +1,51 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Target, Shield, Cpu, ExternalLink, Activity, Zap, Layers, Lock, X, Terminal, MousePointer2 } from 'lucide-react'
+import { Target, Shield, Cpu, ExternalLink, Activity, Zap, Layers, Lock, X, Terminal, MousePointer2, Hand, Sun, Timer, History } from 'lucide-react'
 import RobotViewer from './RobotViewer'
 import SimulationViewer from './SimulationViewer'
 import ErrorBoundary from './ErrorBoundary'
+import ChangelogPage from './ChangelogPage'
+import { CURRENT_VERSION } from './changelog'
 import turretDiagram from './assets/turret_diagram.png'
 
 const TECH_BADGES = [
-  'Python', 'Flask', 'OpenCV', 'C++', 'Raspberry Pi 4', 'ESP32', 'React', 'Three.js'
+  'MediaPipe', 'OpenCV', 'Python', 'NumPy', 'pyserial', 'v4l2-ctl', 'C++', 'FreeRTOS', 'Raspberry Pi 4B', 'ESP32', 'React', 'Three.js'
 ];
 
 const HERO_KEYWORDS = [
-  "실시간 객체 인식",
-  "AI 기반 자동 추적",
-  "물리적 안전 제어",
-  "2축 정밀 조준",
-  "즉각적인 모터 응답"
+  "손 제스처 인식",
+  "주먹을 쥐면 따라가기",
+  "2축 자동 추적",
+  "지연 보상 예측",
+  "카메라 자동 밝기"
+];
+
+// 시스템 구성 (README 와 같은 내용)
+const SYSTEM_SPEC = [
+  { label: '하드웨어', items: ['라즈베리파이 4B', 'ESP32', '스텝모터 2개 (수평, 수직)', 'DM542 드라이버 2개', '24V SMPS', '5V DC-DC 컨버터', 'USB 웹캠', '1:5 감속 기어 (16T → 80T)'] },
+  { label: '소프트웨어 (라즈베리파이)', items: ['Python', 'MediaPipe', 'OpenCV', 'NumPy', 'pyserial', 'v4l2-ctl'] },
+  { label: '소프트웨어 (ESP32)', items: ['C++ (Arduino)', 'FreeRTOS', '가감속 제어'] },
+  { label: '소프트웨어 (Mac 관리 도구)', items: ['Python', 'SSH'] },
+  { label: '소프트웨어 (웹 대시보드)', items: ['Flask', 'HTML', 'CSS', 'JavaScript'] },
+  { label: '통신', items: ['UART 시리얼 (115200bps)', 'USB', 'SSH', 'Wi-Fi'] },
+  { label: '주요 기능', items: ['손 관절 인식', '제스처 판별 (주먹 = 따라가기, 손바닥 = 정지)', '2축 자동 추적', '지연 보상 예측', '카메라 자동 밝기 조절', '자동 캘리브레이션', '조이스틱 수동 조작', '웹 미리보기'] },
+];
+
+const SYSTEM_FLOW = [
+  { title: 'USB 웹캠', desc: '640×480 · 30fps' },
+  { title: '라즈베리파이 4B', desc: 'MediaPipe 손 인식 → 목표 각도 계산' },
+  { title: 'ESP32', desc: 'FreeRTOS · 가감속 펄스 생성' },
+  { title: 'DM542 드라이버 ×2', desc: 'PUL / DIR / ENA' },
+  { title: '스텝모터 ×2', desc: '수평(Pan) · 수직(Tilt)' },
+];
+
+const SYSTEM_LINKS = [
+  { from: '웹캠 → 라즈베리파이', via: 'USB' },
+  { from: '라즈베리파이 → ESP32', via: 'USB 시리얼 115200bps' },
+  { from: 'ESP32 → DM542', via: 'PUL · DIR · ENA 신호' },
+  { from: 'Mac → 라즈베리파이', via: 'Wi-Fi · SSH (aivt)' },
+  { from: '브라우저 → 라즈베리파이', via: '미리보기 5001 · 대시보드 5000' },
+  { from: '24V SMPS', via: 'DM542 모터 전원 · 5V DC-DC 컨버터 입력' },
 ];
 
 function RollingHeroText() {
@@ -97,6 +127,10 @@ function App() {
     );
   }
 
+  if (currentHash === '#changelog') {
+    return <ChangelogPage />;
+  }
+
   if (currentHash === '#Simulationrobot') {
     return (
       <div className="w-screen h-screen bg-brand-light flex flex-col overflow-hidden font-sans selection:bg-brand-neon selection:text-brand-light">
@@ -159,18 +193,18 @@ function App() {
               
               <h3 className="text-2xl font-bold text-white mb-2">로컬 대시보드 연결 안내</h3>
               <p className="text-brand-muted mb-6 leading-relaxed">
-                대시보드는 AI Vision Tracker 소프트웨어가 <strong className="text-white">사용자의 PC(로컬)에서 실행 중일 때만</strong> 접속할 수 있습니다. 
+                대시보드는 AI Vision Tracker 소프트웨어가 <strong className="text-white">라즈베리파이에서 실행 중일 때만</strong> 접속할 수 있습니다.
               </p>
 
               <div className="bg-brand-light rounded-xl p-5 mb-8 border border-brand-border/50">
                 <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                  <Terminal size={16} /> 실행 방법
+                  <Terminal size={16} /> 실행 방법 (Mac 터미널)
                 </h4>
                 <ol className="text-sm text-brand-muted space-y-3 list-decimal list-inside">
-                  <li>GitHub에서 소스 코드를 다운로드합니다.</li>
-                  <li>파이썬 필수 패키지를 설치합니다 <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">pip install -r requirements.txt</code></li>
-                  <li>메인 스크립트를 실행합니다 <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">python app.py</code></li>
-                  <li>서버가 켜지면 아래 버튼을 눌러 접속하세요.</li>
+                  <li>손 추적: <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">aivt run</code> → 미리보기 <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">aivt preview</code> (5001번 포트)</li>
+                  <li>조이스틱 대시보드: <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">aivt dashboard</code> → <code className="bg-black/30 px-2 py-0.5 rounded text-brand-neon mx-1">aivt web</code> (5000번 포트)</li>
+                  <li>둘은 카메라와 ESP32 를 같이 쓰므로 동시에 켤 수 없습니다.</li>
+                  <li>대시보드가 켜진 같은 네트워크에서 아래 버튼을 눌러 접속하세요.</li>
                 </ol>
               </div>
 
@@ -201,9 +235,14 @@ function App() {
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-brand-muted">
           <a href="#features" className="hover:text-white transition-colors">기능</a>
           <a href="#architecture" className="hover:text-white transition-colors">아키텍처</a>
+          <a href="#system" className="hover:text-white transition-colors">시스템 구성</a>
           <a href="#Simulationrobot" className="hover:text-white transition-colors">데모</a>
+          <a href="#changelog" className="hover:text-white transition-colors">바뀐점</a>
         </div>
         <div className="flex items-center gap-4">
+          <a href="#changelog" className="md:hidden flex items-center gap-1.5 text-brand-muted hover:text-white transition-colors text-sm font-medium">
+            <History size={16} /> 바뀐점
+          </a>
           <a href="https://github.com/lsk0522/AI_vision_tracker" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-brand-muted hover:text-white transition-colors font-mono font-medium">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
@@ -230,7 +269,7 @@ function App() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel border border-brand-neon/30 text-brand-neon text-sm font-medium">
             <span className="w-2 h-2 rounded-full bg-brand-neon animate-pulse neon-glow"></span>
-            Physical AI Platform
+            Physical AI Platform · <a href="#changelog" className="font-mono hover:underline underline-offset-4">{CURRENT_VERSION}</a>
           </div>
           
           <RollingHeroText />
@@ -242,8 +281,8 @@ function App() {
             </span>
           </h1>
           <p className="mt-6 text-lg md:text-xl text-brand-muted max-w-xl leading-relaxed break-keep">
-            단순한 조이스틱 제어를 넘어선 차세대 스마트 트래킹 시스템.<br />
-            소프트웨어 안전 리밋과 실시간 인공지능 객체 인식으로 가장 안정적인 물리적 AI 검증 환경을 제공합니다.
+            손 제스처로 조종하는 2축 스텝모터 터렛.<br />
+            주먹을 쥐면 손을 따라가고, 손바닥을 펴면 멈춥니다. MediaPipe 손 인식과 지연 보상 예측, 소프트웨어 안전 리밋으로 빠르고 안전하게 움직입니다.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <a href="#Simulationrobot" className="px-8 py-4 rounded-full bg-brand-neon text-[#0b0f19] font-extrabold hover:bg-[#00ffaa] transition-colors shadow-[0_0_20px_rgba(0,255,170,0.3)] flex items-center gap-2 group">
@@ -259,10 +298,10 @@ function App() {
 
           {/* 실측 스펙 스트립 — README 하드웨어 제어 원리 수치 재사용 */}
           <div className="mt-10 pt-8 border-t border-brand-border/50 w-full max-w-xl grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6">
-            <StatTile value="3000Hz" label="최대 속도" />
-            <StatTile value="8.0Hz/ms" label="가속도" />
+            <StatTile value="3500Hz" label="최대 속도" />
+            <StatTile value="25Hz/ms" label="가속도" />
             <StatTile value="±180°" label="Pan 회전 범위" />
-            <StatTile value="2축" label="정밀 제어" />
+            <StatTile value="21점" label="손 관절 인식" />
           </div>
         </motion.div>
 
@@ -317,9 +356,9 @@ function App() {
               <div className="w-12 h-12 rounded-full bg-brand-surface border border-brand-border flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
                 <Activity size={24} />
               </div>
-              <h3 className="text-2xl font-bold text-white">OpenCV 정밀 추적</h3>
+              <h3 className="text-2xl font-bold text-white">MediaPipe 손 인식</h3>
             </div>
-            <p className="text-brand-muted leading-relaxed break-keep">기존 단순 색상 추적과 달리 다각도의 형태 변화와<br />가려짐에도 강인하게 물체를 놓치지 않는 추적 알고리즘 탑재</p>
+            <p className="text-brand-muted leading-relaxed break-keep">손 관절 21개를 찾아 손바닥 중심을 추적하고,<br />주먹과 손바닥을 구분해 따라가기와 정지를 전환합니다.</p>
           </div>
           
           {/* Small Cards 1x1 */}
@@ -333,6 +372,59 @@ function App() {
             <h3 className="font-bold text-lg mb-2 text-white">안전 구역 기능</h3>
             <p className="text-brand-muted text-sm">부딪히지 않도록 자동으로 멈춤</p>
           </div>
+        </div>
+      </section>
+
+      {/* System Configuration */}
+      <section id="system" className="pt-16 pb-24 max-w-7xl mx-auto px-4 md:px-8 relative z-10">
+        <div className="text-center mb-14">
+          <h2 className="text-3xl md:text-5xl font-extrabold mb-6">시스템 구성</h2>
+          <p className="text-brand-muted text-lg max-w-2xl mx-auto break-keep leading-relaxed">
+            카메라가 손을 보고, 라즈베리파이가 각도를 계산하고, ESP32 가 모터를 돌립니다.
+          </p>
+        </div>
+
+        {/* 신호 흐름 */}
+        <div className="flex flex-col lg:flex-row items-stretch gap-3">
+          {SYSTEM_FLOW.map((node, i) => (
+            <React.Fragment key={node.title}>
+              <div className="flex-1 min-w-0 glass-panel rounded-2xl p-5 border border-brand-border/50 text-center">
+                <div className="font-bold text-white break-keep">{node.title}</div>
+                <div className="mt-1 text-sm text-brand-muted break-keep">{node.desc}</div>
+              </div>
+              {i < SYSTEM_FLOW.length - 1 && (
+                <div className="flex items-center justify-center text-brand-neon font-bold text-xl shrink-0" aria-hidden="true">
+                  <span className="lg:hidden">↓</span>
+                  <span className="hidden lg:inline">→</span>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {SYSTEM_LINKS.map((link) => (
+            <div key={link.from} className="rounded-xl bg-brand-surface/40 border border-brand-border/40 px-4 py-3 text-sm min-w-0">
+              <div className="text-white font-medium break-keep">{link.from}</div>
+              <div className="text-brand-muted break-keep">{link.via}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 구성 요소 목록 */}
+        <div className="mt-10 glass-panel rounded-3xl border border-brand-border/50 divide-y divide-brand-border/40">
+          {SYSTEM_SPEC.map((row) => (
+            <div key={row.label} className="flex flex-col md:flex-row gap-2 md:gap-6 px-6 py-5">
+              <div className="md:w-56 shrink-0 font-bold text-brand-neon break-keep">{row.label}</div>
+              <div className="flex flex-wrap gap-2 min-w-0">
+                {row.items.map((item) => (
+                  <span key={item} className="px-3 py-1 rounded-full bg-brand-surface border border-brand-border/60 text-sm text-brand-text/90 break-keep">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -373,9 +465,24 @@ function App() {
               description="목적지에 도달하기 전 점진적으로 속도를 줄여 하드웨어가 관성으로 밀리는 현상을 제거했습니다."
             />
             <FeatureCard
-              icon={<Target size={28} className="text-purple-400" />}
-              title="AI 정밀 추적"
-              description="OpenCV 기반의 초고속 물체 인식 알고리즘으로, 카메라가 움직이는 중에도 타겟을 흔들림 없이 추적합니다."
+              icon={<Hand size={28} className="text-purple-400" />}
+              title="손 제스처 제어"
+              description="주먹을 쥐면 손을 따라가고, 손바닥을 펴면 그 자리에서 멈춥니다. 손이 1초 넘게 사라지면 자동으로 정지합니다."
+            />
+            <FeatureCard
+              icon={<Timer size={28} className="text-brand-neon" />}
+              title="지연 보상 예측"
+              description="사진을 찍은 순간의 모터 위치를 기준으로 각도를 계산하고, 처리 지연만큼 손이 갈 곳을 미리 겨냥합니다."
+            />
+            <FeatureCard
+              icon={<Target size={28} className="text-blue-400" />}
+              title="놓치면 즉시 정지"
+              description="손을 0.2초 못 찾으면 멈추고, 갑자기 튄 검출은 무시해서 엉뚱한 방향으로 밀리지 않습니다."
+            />
+            <FeatureCard
+              icon={<Sun size={28} className="text-purple-400" />}
+              title="카메라 자동 밝기"
+              description="노출 시간을 짧게 유지해 손이 덜 번지게 하고, 밝기에 맞춰 노출과 gain 을 자동으로 조절합니다."
             />
           </div>
         </div>
@@ -385,8 +492,8 @@ function App() {
       <section className="py-24 relative z-10 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="text-center mb-20">
-            <h2 className="text-3xl md:text-5xl font-extrabold mb-6">단 0.1초 만에 이루어지는 프로세스</h2>
-            <p className="text-brand-muted text-lg">목표물을 감지하고 모터가 구동되기까지의 완벽한 파이프라인</p>
+            <h2 className="text-3xl md:text-5xl font-extrabold mb-6">손을 보고 움직이기까지</h2>
+            <p className="text-brand-muted text-lg">손을 찾고 모터가 움직이기까지의 3단계</p>
           </div>
           
           <div className="flex flex-col md:flex-row justify-between items-start gap-12 md:gap-8 relative">
@@ -396,9 +503,9 @@ function App() {
             <div className="md:hidden absolute top-[5%] bottom-[5%] left-10 w-[2px] bg-gradient-to-b from-transparent via-brand-border to-transparent z-0"></div>
             
             {[
-              { step: '01', title: '타겟 인식', desc: '카메라 모듈이 초당 60프레임으로 이미지를 수집하고 사용자가 지정한 타겟을 인식합니다.' },
-              { step: '02', title: '위치 계산', desc: '라즈베리파이가 타겟의 예상 이동 경로와 현재 오차를 계산합니다.' },
-              { step: '03', title: '모터 구동', desc: '계산된 좌표를 ESP32가 넘겨받아 정밀하게 제어하여 모터를 부드럽게 구동시킵니다.' }
+              { step: '01', title: '손 인식', desc: '웹캠이 초당 30장을 찍고, MediaPipe 가 손 관절 21개와 주먹 · 손바닥 제스처를 찾습니다.' },
+              { step: '02', title: '각도 계산', desc: '라즈베리파이가 촬영 순간의 모터 위치와 화면 오차로 손의 각도를 구하고, 지연만큼 앞을 예측합니다.' },
+              { step: '03', title: '모터 구동', desc: 'ESP32 가 목표 각도를 받아 가감속 펄스를 만들고, DM542 드라이버가 스텝모터를 돌립니다.' }
             ].map((item, i) => (
               <div key={i} className="relative z-10 flex flex-row md:flex-col items-center md:items-center gap-6 md:gap-6 md:text-center w-full md:w-1/3 group">
                 <div className="w-20 h-20 shrink-0 rounded-full bg-[#1f2937] flex items-center justify-center text-2xl font-black text-[#00ffaa] border-2 border-[#00ffaa] shadow-[0_0_20px_rgba(0,255,170,0.4)] group-hover:scale-110 group-hover:shadow-[0_0_30px_rgba(0,255,170,0.8)] transition-all duration-300 relative z-20">
@@ -446,8 +553,10 @@ function App() {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
             <a href="#features" className="hover:text-white transition-colors">기능</a>
+            <a href="#system" className="hover:text-white transition-colors">시스템 구성</a>
             <a href="#Simulationrobot" className="hover:text-white transition-colors">데모</a>
-            <a href="https://github.com/lsk0522/AI_vision_tracker/blob/main/USER_GUIDE.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">사용자 가이드</a>
+            <a href="#changelog" className="hover:text-white transition-colors">바뀐점</a>
+            <a href="https://github.com/lsk0522/AI_vision_tracker/blob/main/docs/USER_GUIDE.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">사용자 가이드</a>
             <a href="https://github.com/lsk0522/AI_vision_tracker" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
           </div>
         </div>
